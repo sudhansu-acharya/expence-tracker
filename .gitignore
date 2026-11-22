@@ -1,0 +1,15 @@
+# Dependencies & native build outputs
+node_modules/
+android-bridge/android/
+android-bridge/www/
+android-bridge/node_modules/
+
+# Never commit personal backups, recovery keys, or exports
+*.enc.json
+*recovery-key*.txt
+*.csv
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/

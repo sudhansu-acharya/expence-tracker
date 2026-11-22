@@ -53,6 +53,8 @@ const appState = {
   txWalletFilter: '',
   txTagFilter: '',
   smsDraft: '',
+  pendingSharedText: '',
+  autoSaveShared: false,
   parseQueue: [],
   deferredInstallPrompt: null,
   modalState: null
@@ -543,6 +545,74 @@ async function approveParsedItem(item) {
   }
 }
 
+async function runPostUnlockCaptureHooks() {
+  if (!hasSessionKey() || !vaultData) return;
+  let capturedCount = 0;
+
+  // 1. Auto-parse Android Share-Sheet / MacroDroid deep-link text
+  if (appState.pendingSharedText) {
+    const raw = appState.pendingSharedText;
+    appState.pendingSharedText = '';
+    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      const parsed = await parseMessageOnDevice(
+        { body: line, source: 'sms' },
+        { wallets: vaultData.wallets, categories: vaultData.categories, rules: vaultData.categorization_rules, existingTxs: vaultData.transactions }
+      );
+      if (parsed) {
+        if (appState.autoSaveShared) {
+          await approveParsedItem(parsed);
+        } else {
+          appState.parseQueue.push(parsed);
+        }
+        capturedCount++;
+      }
+    }
+    if (appState.autoSaveShared && capturedCount > 0) {
+      appState.autoSaveShared = false;
+      await refreshVaultData();
+      await evaluateBudgetAlerts(vaultData.budgets, vaultData.transactions, vaultData.settings, showToast);
+      await refreshVaultData();
+    }
+    if (history.replaceState) {
+      history.replaceState({}, '', location.pathname);
+    }
+  }
+
+  // 2. Flush background SMS & UPI notifications queued by the Phase 5 Android APK
+  const nativeBridge = window.Capacitor?.Plugins?.CashewBridge;
+  if (nativeBridge && typeof nativeBridge.flushQueuedMessages === 'function') {
+    try {
+      const res = await nativeBridge.flushQueuedMessages();
+      const msgs = JSON.parse(res?.messagesJson || '[]');
+      for (const msg of msgs) {
+        const parsed = await parseMessageOnDevice(msg, {
+          wallets: vaultData.wallets,
+          categories: vaultData.categories,
+          rules: vaultData.categorization_rules,
+          existingTxs: vaultData.transactions
+        });
+        if (parsed) {
+          await approveParsedItem(parsed);
+          capturedCount++;
+        }
+      }
+      if (msgs.length > 0) {
+        await refreshVaultData();
+        await evaluateBudgetAlerts(vaultData.budgets, vaultData.transactions, vaultData.settings, showToast);
+        await refreshVaultData();
+      }
+    } catch {
+      // Ignore bridge errors when running outside native APK
+    }
+  }
+
+  if (capturedCount > 0) {
+    renderApp();
+    showToast(`Auto-captured ${capturedCount} SMS/UPI item(s) on-device`);
+  }
+}
+
 /* ============================================================
    GLOBAL DELEGATED EVENT LISTENERS (STRICT CSP COMPLIANT)
    ============================================================ */
@@ -579,6 +649,7 @@ document.addEventListener('click', async e => {
           await loginWithPin(enteredPin);
           await refreshVaultData();
           renderApp();
+          await runPostUnlockCaptureHooks();
           showToast('Vault unlocked via PIN');
         } catch (err) {
           await renderAuthGate(err.message);
@@ -596,6 +667,7 @@ document.addEventListener('click', async e => {
       appState.pendingRecoveryKey = null;
       await refreshVaultData();
       renderApp();
+      await runPostUnlockCaptureHooks();
       showToast('Encrypted vault ready!');
     } else if (action === 'bio-check') {
       await checkBiometricPresence();
@@ -767,6 +839,46 @@ document.addEventListener('click', async e => {
         renderApp();
         showToast(`Now tracking ${c.title}`);
       }
+    } else if (action === 'paste-and-parse') {
+      const clip = await navigator.clipboard?.readText();
+      if (!clip || !clip.trim()) {
+        showToast('Clipboard is empty — copy a bank SMS or UPI alert first');
+        return;
+      }
+      appState.smsDraft = clip.trim();
+      const lines = clip.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      let added = 0;
+      for (const line of lines) {
+        const parsed = await parseMessageOnDevice(
+          { body: line, source: 'sms' },
+          { wallets: vaultData.wallets, categories: vaultData.categories, rules: vaultData.categorization_rules, existingTxs: vaultData.transactions }
+        );
+        if (parsed) { appState.parseQueue.push(parsed); added++; }
+      }
+      renderApp();
+      showToast(added ? `Parsed ${added} item(s) from clipboard` : 'No bank amount or CC bill found in clipboard');
+    } else if (action === 'native-request-perms') {
+      const nb = window.Capacitor?.Plugins?.CashewBridge;
+      if (!nb) { showToast('Install the Android APK to enable native SMS access'); return; }
+      await nb.requestSmsPermissions();
+      showToast('SMS permissions requested — grant Allow to enable auto-capture');
+    } else if (action === 'native-scan-sms') {
+      const nb = window.Capacitor?.Plugins?.CashewBridge;
+      if (!nb) { showToast('Install the Android APK to scan SMS inbox'); return; }
+      const res = await nb.scanRecentSms({ days: 30 });
+      const msgs = JSON.parse(res?.messagesJson || '[]');
+      let added = 0;
+      for (const msg of msgs) {
+        const parsed = await parseMessageOnDevice(msg, {
+          wallets: vaultData.wallets,
+          categories: vaultData.categories,
+          rules: vaultData.categorization_rules,
+          existingTxs: vaultData.transactions
+        });
+        if (parsed) { appState.parseQueue.push(parsed); added++; }
+      }
+      renderApp();
+      showToast(added ? `Found ${added} bank/CC SMS in last 30 days` : 'No new bank or credit card SMS found');
     } else if (action === 'load-sample-sms') {
       const sample = SAMPLE_SMS_LIBRARY[btn.dataset.sample] || '';
       appState.smsDraft = sample;
@@ -949,6 +1061,7 @@ document.addEventListener('submit', async e => {
       await loginWithPassword(u, p);
       await refreshVaultData();
       renderApp();
+      await runPostUnlockCaptureHooks();
       showToast('Vault unlocked');
     } else if (id === 'recoverVaultForm') {
       const rk = document.getElementById('recoverKeyInput').value;
@@ -1184,11 +1297,13 @@ window.addEventListener('beforeinstallprompt', e => {
   document.getElementById('installPwaBtn')?.classList.remove('hidden');
 });
 
-// Check for Android Web Share Target (?shared_text=...)
+// Check for Android Web Share Target or MacroDroid Deep Link (?shared_text=...&auto_save=1)
 const urlParams = new URLSearchParams(location.search);
 const sharedText = urlParams.get('shared_text') || urlParams.get('text');
 if (sharedText) {
   appState.smsDraft = sharedText;
+  appState.pendingSharedText = sharedText;
+  appState.autoSaveShared = urlParams.get('auto_save') === '1';
   appState.screen = 'capture';
 }
 

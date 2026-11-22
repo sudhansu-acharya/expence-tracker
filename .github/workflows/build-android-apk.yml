@@ -1,0 +1,130 @@
+name: Build CashewFlow Android APK (Auto-SMS + UPI)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Prepare lightweight web assets in android-bridge/www
+        run: |
+          mkdir -p android-bridge/www
+          cp index.html manifest.json sw.js android-bridge/www/
+          cp -r css js assets android-bridge/www/
+
+      - name: Install Capacitor & Generate Android Project
+        working-directory: android-bridge
+        run: |
+          npm install
+          npx cap add android
+
+      - name: Enable Kotlin & Inject On-Device SMS + UPI Bridge
+        working-directory: android-bridge
+        run: |
+          mkdir -p android/app/src/main/java/com/cashewflow/bridge
+          cp android-src/com/cashewflow/bridge/*.kt android/app/src/main/java/com/cashewflow/bridge/
+
+          # Enable Kotlin plugin in Gradle
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root_gradle = Path('android/build.gradle')
+          rg = root_gradle.read_text()
+          if 'kotlin-gradle-plugin' not in rg:
+              rg = rg.replace(
+                  'dependencies {',
+                  'dependencies {\n        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24"',
+                  1
+              )
+              root_gradle.write_text(rg)
+
+          app_gradle = Path('android/app/build.gradle')
+          ag = app_gradle.read_text()
+          if 'kotlin-android' not in ag:
+              ag = ag.replace(
+                  "apply plugin: 'com.android.application'",
+                  "apply plugin: 'com.android.application'\napply plugin: 'kotlin-android'",
+                  1
+              )
+              app_gradle.write_text(ag)
+
+          # Register CashewBridgePlugin in MainActivity.java
+          main_act = Path('android/app/src/main/java/com/cashewflow/offline/MainActivity.java')
+          main_act.write_text("""package com.cashewflow.offline;
+
+          import android.os.Bundle;
+          import com.getcapacitor.BridgeActivity;
+          import com.cashewflow.bridge.CashewBridgePlugin;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(CashewBridgePlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          """)
+
+          # Inject SMS & NotificationListener permissions/components into AndroidManifest.xml
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          m = manifest.read_text()
+          perms = """
+              <uses-permission android:name="android.permission.RECEIVE_SMS" />
+              <uses-permission android:name="android.permission.READ_SMS" />
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+          """
+          if 'RECEIVE_SMS' not in m:
+              m = m.replace('<application', perms + '\n    <application', 1)
+
+          components = """
+                  <receiver
+                      android:name="com.cashewflow.bridge.CashewSmsReceiver"
+                      android:exported="true"
+                      android:permission="android.permission.BROADCAST_SMS">
+                      <intent-filter android:priority="999">
+                          <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+                      </intent-filter>
+                  </receiver>
+
+                  <service
+                      android:name="com.cashewflow.bridge.CashewNotificationListener"
+                      android:exported="true"
+                      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+                      <intent-filter>
+                          <action android:name="android.service.notification.NotificationListenerService" />
+                      </intent-filter>
+                  </service>
+          """
+          if 'CashewSmsReceiver' not in m:
+              m = m.replace('</application>', components + '\n    </application>', 1)
+          manifest.write_text(m)
+          PY
+
+          npx cap sync android
+
+      - name: Build Debug APK
+        working-directory: android-bridge/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload CashewFlow Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CashewFlow-Android-APK
+          path: android-bridge/android/app/build/outputs/apk/debug/app-debug.apk

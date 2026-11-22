@@ -8,6 +8,32 @@ export function renderCaptureView(ctx) {
   const settings = data.settings;
   const balances = computeWalletBalances(data.wallets, data.transactions);
   const catMap = new Map(data.categories.map(c => [c.id, c]));
+  const hasNativeBridge = Boolean(window.Capacitor?.Plugins?.CashewBridge);
+
+  const androidBridgeBanner = hasNativeBridge ? `
+    <div class="card" style="border-color:var(--green);background:var(--green-soft)">
+      <div class="card-header" style="margin-bottom:6px">
+        <div class="card-title">${iconSvg('shield')} Native Android Auto-SMS &amp; UPI Capture Active</div>
+        <span class="chip chip-green">100% On-Device</span>
+      </div>
+      <p class="muted" style="color:var(--text-2);margin-bottom:10px">Incoming bank SMS, Credit Card Bill SMS, and GPay/PhonePe/Paytm alerts are captured automatically in the background.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-primary" data-action="native-scan-sms">Scan Last 30 Days SMS &amp; CC Bills</button>
+        <button class="btn-soft" data-action="native-request-perms">Grant SMS / Notification Permissions</button>
+      </div>
+    </div>` : `
+    <div class="alert-banner">
+      <div class="alert-left">
+        <div class="alert-icon">${iconSvg('bell')}</div>
+        <div>
+          <div style="font-size:13.5px;font-weight:800">Why Chrome PWA Cannot Auto-Read SMS on Android</div>
+          <div class="muted" style="color:var(--text-2);margin-top:2px;line-height:1.45">
+            Android OS blocks web browsers from silently reading your SMS inbox. For <strong>100% automatic background SMS &amp; Credit Card Bill capture</strong>, install the free <strong>CashewFlow Android APK</strong> (built in GitHub Actions) — or use <strong>Paste &amp; Auto-Parse</strong> / Android <strong>Share</strong> menu right here in Chrome.
+          </div>
+        </div>
+      </div>
+      <button class="btn-primary" style="min-height:36px;padding:7px 13px;font-size:12px" data-action="paste-and-parse">Paste &amp; Auto-Parse</button>
+    </div>`;
 
   const queueHtml = state.parseQueue.length ? `
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
@@ -80,6 +106,8 @@ export function renderCaptureView(ctx) {
 
   return `
     <div class="stack">
+      ${androidBridgeBanner}
+
       <!-- On-Device SMS / UPI / Credit Card Bill Parser -->
       <div class="card">
         <div class="card-header">
