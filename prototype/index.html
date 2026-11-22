@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-accent="emerald">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;" />
+  <title>CashewFlow — Interactive UI Prototype (Phase 0)</title>
+  <style>
+    /* ============================================================
+       MATERIAL YOU / CASHEW DESIGN TOKENS
+       ============================================================ */
+    :root {
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --radius-sm: 10px;
+      --radius-md: 16px;
+      --radius-lg: 22px;
+      --radius-xl: 28px;
+      --radius-pill: 999px;
+
+      /* Accent defaults: Cashew Emerald */
+      --accent: #0d9488;
+      --accent-strong: #0f766e;
+      --accent-soft: #ccfbf1;
+      --accent-tint: rgba(13, 148, 136, 0.12);
+      --accent-on: #ffffff;
+
+      /* Light surface palette */
+      --bg-canvas: #eef2f5;
+      --bg-app: #f6f8fa;
+      --bg-card: #ffffff;
+      --bg-card-2: #f1f5f9;
+      --bg-elevated: #ffffff;
+      --border: rgba(15, 23, 42, 0.08);
+      --border-strong: rgba(15, 23, 42, 0.14);
+      --text-1: #0f172a;
+      --text-2: #475569;
+      --text-3: #64748b;
+
+      --green: #10b981;
+      --green-soft: rgba(16, 185, 129, 0.14);
+      --red: #ef4444;
+      --red-soft: rgba(239, 68, 68, 0.13);
+      --amber: #f59e0b;
+      --amber-soft: rgba(245, 158, 11, 0.16);
+      --blue: #3b82f6;
+      --blue-soft: rgba(59, 130, 246, 0.14);
+      --purple: #8b5cf6;
+      --purple-soft: rgba(139, 92, 246, 0.14);
+
+      --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.16);
+      --transition: 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    [data-theme="dark"] {
+      --bg-canvas: #06090f;
+      --bg-app: #0c111b;
+      --bg-card: #151c2c;
+      --bg-card-2: #1c2538;
+      --bg-elevated: #1e293b;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.15);
+      --text-1: #f8fafc;
+      --text-2: #cbd5e1;
+      --text-3: #94a3b8;
+      --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.45);
+      --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.65);
+    }
+
+    [data-accent="emerald"] { --accent: #0d9488; --accent-strong: #0f766e; --accent-soft: #ccfbf1; --accent-tint: rgba(13, 148, 136, 0.14); }
+    [data-accent="indigo"]  { --accent: #4f46e5; --accent-strong: #4338ca; --accent-soft: #e0e7ff; --accent-tint: rgba(79, 70, 229, 0.14); }
+    [data-accent="coral"]   { --accent: #e11d48; --accent-strong: #be123c; --accent-soft: #ffe4e6; --accent-tint: rgba(225, 29, 72, 0.14); }
+    [data-accent="violet"]  { --accent: #7c3aed; --accent-strong: #6d28d9; --accent-soft: #ede9fe; --accent-tint: rgba(124, 58, 237, 0.14); }
+    [data-accent="amber"]   { --accent: #d97706; --accent-strong: #b45309; --accent-soft: #fef3c7; --accent-tint: rgba(217, 119, 6, 0.16); }
+
+    [data-theme="dark"][data-accent="emerald"] { --accent: #2dd4bf; --accent-strong: #14b8a6; --accent-soft: rgba(45, 212, 191, 0.18); --accent-on: #042f2e; }
+    [data-theme="dark"][data-accent="indigo"]  { --accent: #818cf8; --accent-strong: #6366f1; --accent-soft: rgba(129, 140, 248, 0.18); --accent-on: #1e1b4b; }
+    [data-theme="dark"][data-accent="coral"]   { --accent: #fb7185; --accent-strong: #f43f5e; --accent-soft: rgba(251, 113, 133, 0.18); --accent-on: #4c0519; }
+    [data-theme="dark"][data-accent="violet"]  { --accent: #a78bfa; --accent-strong: #8b5cf6; --accent-soft: rgba(167, 139, 250, 0.18); --accent-on: #2e1065; }
+    [data-theme="dark"][data-accent="amber"]   { --accent: #fbbf24; --accent-strong: #f59e0b; --accent-soft: rgba(251, 191, 36, 0.18); --accent-on: #451a03; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: var(--font-sans);
+      background: var(--bg-canvas);
+      color: var(--text-1);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select, textarea { font-family: inherit; color: inherit; }
+    button { cursor: pointer; border: none; background: transparent; }
+
+    /* ============================================================
+       FIGMA-STYLE TOP PREVIEW BAR
+       ============================================================ */
+    .proto-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 14px;
+      box-shadow: var(--shadow-sm);
+    }
+    .proto-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: -0.02em;
+      padding-right: 8px;
+      border-right: 1px solid var(--border);
+    }
+    .proto-badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: var(--accent-tint);
+      color: var(--accent);
+      padding: 3px 8px;
+      border-radius: var(--radius-pill);
+    }
+    .tool-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-card-2);
+      padding: 4px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+    }
+    .tool-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-2);
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+    .tool-btn:hover { color: var(--text-1); }
+    .tool-btn.active {
+      background: var(--accent);
+      color: var(--accent-on);
+      box-shadow: var(--shadow-sm);
+    }
+    .accent-dots { display: flex; align-items: center; gap: 6px; padding: 0 6px; }
+    .accent-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      transition: transform var(--transition);
+    }
+    .accent-dot:hover { transform: scale(1.15); }
+    .accent-dot.active { border-color: var(--text-1); transform: scale(1.15); }
+    .screen-pills {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      margin-left: auto;
+    }
+    .screen-pill {
+      padding: 5px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-2);
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+    .screen-pill:hover { border-color: var(--accent); color: var(--accent); }
+    .screen-pill.active { background: var(--accent-tint); color: var(--accent); border-color: var(--accent); }
+
+    /* ============================================================
+       VIEWPORT STAGE (MOBILE PHONE FRAME VS DESKTOP FULL SHELL)
+       ============================================================ */
+    .stage {
+      padding: 20px 16px 40px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: calc(100vh - 60px);
+    }
+
+    /* Mobile Frame Mode */
+    .device-frame {
+      width: 396px;
+      height: 824px;
+      border-radius: 42px;
+      background: var(--bg-app);
+      border: 8px solid #1e293b;
+      box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255,255,255,0.08);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      transition: width 260ms ease, height 260ms ease, border-radius 260ms ease;
+    }
+    [data-theme="dark"] .device-frame { border-color: #334155; }
+
+    .android-statusbar {
+      height: 30px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-2);
+      background: var(--bg-app);
+      flex-shrink: 0;
+    }
+    .notch-pill {
+      width: 82px;
+      height: 16px;
+      background: #0f172a;
+      border-radius: 99px;
+      margin: 0 auto;
+    }
+
+    /* Desktop Mode */
+    .stage.desktop-mode { padding: 16px; }
+    .stage.desktop-mode .device-frame {
+      width: min(1320px, 100%);
+      height: calc(100vh - 96px);
+      min-height: 700px;
+      border-radius: 22px;
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-md);
+    }
+    .stage.desktop-mode .android-statusbar { display: none; }
+
+    /* ============================================================
+       APP SHELL (SIDEBAR RAIL ON DESKTOP, BOTTOM NAV ON MOBILE)
+       ============================================================ */
+    .app-shell {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      position: relative;
+      background: var(--bg-app);
+    }
+    .desktop-rail {
+      display: none;
+      width: 244px;
+      flex-shrink: 0;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      padding: 18px 14px;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .stage.desktop-mode .desktop-rail { display: flex; }
+
+    .rail-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px 16px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .rail-logo-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 11px;
+      background: var(--accent);
+      color: var(--accent-on);
+      display: grid;
+      place-items: center;
+    }
+    .rail-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-2);
+      transition: all var(--transition);
+      text-align: left;
+    }
+    .rail-item:hover { background: var(--bg-card-2); color: var(--text-1); }
+    .rail-item.active { background: var(--accent-tint); color: var(--accent); }
+    .rail-spacer { flex: 1; }
+    .rail-footer {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .app-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+    }
+    .app-header {
+      padding: 12px 16px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--bg-app);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .stage.desktop-mode .app-header { padding: 14px 24px; }
+    .header-title-wrap h1 {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .header-sub {
+      font-size: 11.5px;
+      color: var(--text-3);
+      margin-top: 1px;
+    }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      display: grid;
+      place-items: center;
+      transition: all var(--transition);
+    }
+    .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .app-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 14px 92px;
+      scroll-behavior: smooth;
+    }
+    .stage.desktop-mode .app-scroll { padding: 20px 24px 36px; }
+
+    /* Mobile Bottom Navigation */
+    .bottom-nav {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 68px;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      align-items: center;
+      padding: 0 6px 6px;
+      z-index: 20;
+    }
+    .stage.desktop-mode .bottom-nav { display: none; }
+    .bnav-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-3);
+      padding: 6px 2px;
+      border-radius: 12px;
+      transition: all var(--transition);
+    }
+    .bnav-btn.active { color: var(--accent); }
+    .bnav-btn.active .bnav-pill {
+      background: var(--accent-tint);
+      padding: 4px 14px;
+      border-radius: var(--radius-pill);
+    }
+    .bnav-pill { padding: 4px 10px; display: grid; place-items: center; }
+
+    /* Floating Action Button (+) */
+    .fab {
+      position: absolute;
+      right: 16px;
+      bottom: 82px;
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      background: var(--accent);
+      color: var(--accent-on);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 10px 24px rgba(13, 148, 136, 0.35);
+      z-index: 25;
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+    .fab:hover { transform: translateY(-2px) scale(1.04); }
+    .stage.desktop-mode .fab {
+      bottom: 24px;
+      right: 28px;
+      width: auto;
+      padding: 0 18px;
+      gap: 8px;
+      display: inline-flex;
+      font-weight: 700;
+      font-size: 14px;
+      border-radius: 16px;
+    }
+    .fab-label { display: none; }
+    .stage.desktop-mode .fab-label { display: inline; }
+
+    /* ============================================================
+       CARDS, GRIDS & TYPOGRAPHY
+       ============================================================ */
+    .grid-2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .stage.desktop-mode .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .stage.desktop-mode .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .stack { display: flex; flex-direction: column; gap: 12px; }
+    .stage.desktop-mode .stack { gap: 16px; }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .muted { color: var(--text-3); font-size: 12px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--bg-card-2);
+      color: var(--text-2);
+    }
+    .chip-green { background: var(--green-soft); color: var(--green); }
+    .chip-red   { background: var(--red-soft); color: var(--red); }
+    .chip-amber { background: var(--amber-soft); color: var(--amber); }
+    .chip-blue  { background: var(--blue-soft); color: var(--blue); }
+    .chip-accent { background: var(--accent-tint); color: var(--accent); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-on);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px 16px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: all var(--transition);
+    }
+    .btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .btn-soft {
+      background: var(--bg-card-2);
+      color: var(--text-1);
+      border: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 12.5px;
+      padding: 8px 13px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all var(--transition);
+    }
+    .btn-soft:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Safe-to-Spend Hero Card */
+    .hero-safe {
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: var(--accent-on);
+      border: none;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-safe::after {
+      content: "";
+      position: absolute;
+      width: 170px;
+      height: 170px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      top: -60px;
+      right: -40px;
+      pointer-events: none;
+    }
+    .hero-label { font-size: 12px; font-weight: 700; opacity: 0.9; display: flex; align-items: center; gap: 6px; }
+    .hero-amount { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; margin: 6px 0 4px; }
+    .hero-sub { font-size: 12px; opacity: 0.9; line-height: 1.45; }
+    .hero-pill-btn {
+      margin-top: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      color: var(--accent-on);
+      padding: 5px 11px;
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .formula-box {
+      margin-top: 10px;
+      background: rgba(0, 0, 0, 0.16);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 11.5px;
+      line-height: 1.5;
+    }
+
+    /* Alert Banner (Credit Card Bill SMS Reminder) */
+    .cc-alert-banner {
+      background: var(--amber-soft);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: var(--radius-lg);
+      padding: 12px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .cc-alert-left { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 200px; }
+    .cc-alert-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: var(--amber);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .cc-alert-title { font-size: 13px; font-weight: 800; color: var(--text-1); }
+    .cc-alert-sub { font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
+
+    /* Net Worth Metrics */
+    .nw-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+    .nw-box {
+      background: var(--bg-card-2);
+      border-radius: 14px;
+      padding: 10px;
+    }
+    .nw-box-label { font-size: 10.5px; font-weight: 600; color: var(--text-3); }
+    .nw-box-val { font-size: 14px; font-weight: 800; margin-top: 3px; letter-spacing: -0.02em; }
+
+    /* Segmented Control */
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      background: var(--bg-card-2);
+      padding: 4px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      gap: 4px;
+    }
+    .seg-btn {
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text-2);
+      transition: all var(--transition);
+    }
+    .seg-btn.active {
+      background: var(--bg-card);
+      color: var(--accent);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Transaction Row */
+    .tx-list { display: flex; flex-direction: column; gap: 8px; }
+    .tx-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: var(--bg-card-2);
+      transition: all var(--transition);
+      cursor: pointer;
+    }
+    .tx-row:hover { transform: translateX(2px); }
+    .cat-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .tx-info { flex: 1; min-width: 0; }
+    .tx-title { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .tx-meta { font-size: 11.5px; color: var(--text-3); margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .tx-amount { font-size: 14px; font-weight: 800; text-align: right; white-space: nowrap; }
+    .tx-amount.expense { color: var(--red); }
+    .tx-amount.income { color: var(--green); }
+    .tx-amount.transfer { color: var(--blue); }
+    .tag-pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: var(--radius-pill);
+      background: var(--accent-tint);
+      color: var(--accent);
+    }
+
+    /* Progress Bars */
+    .progress-track {
+      height: 10px;
+      border-radius: 99px;
+      background: var(--bg-card-2);
+      overflow: hidden;
+      margin: 8px 0 6px;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 350ms ease;
+    }
+
+    /* Chart Container */
+    .chart-wrap { width: 100%; overflow: hidden; }
+    .donut-layout {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .donut-legend { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 8px; }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      gap: 8px;
+    }
+    .legend-left { display: flex; align-items: center; gap: 7px; font-weight: 600; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ============================================================
+       LOGIN / VAULT LOCK SCREEN
+       ============================================================ */
+    .login-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      background: var(--bg-app);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 24px 22px;
+      box-shadow: var(--shadow-md);
+      text-align: center;
+    }
+    .login-logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: var(--accent-on);
+      display: grid;
+      place-items: center;
+      margin: 0 auto 12px;
+    }
+    .login-field {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-card-2);
+      font-size: 13.5px;
+      margin-bottom: 10px;
+      outline: none;
+    }
+    .login-field:focus { border-color: var(--accent); }
+    .pin-dots { display: flex; justify-content: center; gap: 12px; margin: 14px 0; }
+    .pin-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--border-strong);
+      transition: all 150ms ease;
+    }
+    .pin-dot.filled { background: var(--accent); border-color: var(--accent); transform: scale(1.1); }
+    .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+    .pin-key {
+      height: 44px;
+      border-radius: 14px;
+      background: var(--bg-card-2);
+      font-size: 16px;
+      font-weight: 700;
+      transition: background 120ms ease;
+    }
+    .pin-key:hover { background: var(--accent-tint); color: var(--accent); }
+
+    /* ============================================================
+       ADD TRANSACTION BOTTOM SHEET / MODAL
+       ============================================================ */
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      background: rgba(15, 23, 42, 0.52);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 12px;
+    }
+    .stage.desktop-mode .modal-backdrop { align-items: center; }
+    .modal-sheet {
+      width: 100%;
+      max-width: 480px;
+      max-height: 92%;
+      overflow-y: auto;
+      background: var(--bg-card);
+      border-radius: 26px;
+      padding: 18px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
+    }
+    .calc-display {
+      background: var(--bg-card-2);
+      border-radius: 16px;
+      padding: 12px 16px;
+      text-align: right;
+      margin: 10px 0;
+    }
+    .calc-expr { font-size: 12px; color: var(--text-3); min-height: 16px; }
+    .calc-val { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+    .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
+    .calc-key {
+      height: 40px;
+      border-radius: 12px;
+      background: var(--bg-card-2);
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .calc-key.op { background: var(--accent-tint); color: var(--accent); }
+    .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0; }
+    .cat-pick {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 4px;
+      border-radius: 14px;
+      border: 1.5px solid transparent;
+      background: var(--bg-card-2);
+      font-size: 10.5px;
+      font-weight: 700;
+    }
+    .cat-pick.active { border-color: var(--accent); background: var(--accent-tint); color: var(--accent); }
+
+    /* Inputs & Forms */
+    .input {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-card-2);
+      font-size: 13px;
+      outline: none;
+    }
+    .input:focus { border-color: var(--accent); }
+    .textarea { min-height: 78px; resize: vertical; line-height: 1.45; }
+
+    /* Toast */
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 84px;
+      transform: translateX(-50%);
+      z-index: 70;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 16px;
+      border-radius: var(--radius-pill);
+      font-size: 12.5px;
+      font-weight: 600;
+      box-shadow: var(--shadow-md);
+      white-space: nowrap;
+      max-width: 90%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .stage.desktop-mode .toast { bottom: 26px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <!-- ============================================================
+       FIGMA-STYLE PROTOTYPE PREVIEW BAR
+       ============================================================ -->
+  <header class="proto-toolbar">
+    <div class="proto-brand">
+      <span>CashewFlow</span>
+      <span class="proto-badge">Phase 0 Prototype</span>
+    </div>
+
+    <div class="tool-group" role="group" aria-label="Viewport Switcher">
+      <button class="tool-btn active" id="btnViewMobile" onclick="setViewport('mobile')">Android Mobile</button>
+      <button class="tool-btn" id="btnViewDesktop" onclick="setViewport('desktop')">Windows / macOS</button>
+    </div>
+
+    <div class="tool-group" role="group" aria-label="Theme Switcher">
+      <button class="tool-btn active" id="btnThemeLight" onclick="setTheme('light')">Light</button>
+      <button class="tool-btn" id="btnThemeDark" onclick="setTheme('dark')">Dark</button>
+      <div class="accent-dots" title="Material You Accent">
+        <button class="accent-dot active" data-acc="emerald" style="background:#0d9488" onclick="setAccent('emerald')" aria-label="Emerald"></button>
+        <button class="accent-dot" data-acc="indigo" style="background:#4f46e5" onclick="setAccent('indigo')" aria-label="Indigo"></button>
+        <button class="accent-dot" data-acc="coral" style="background:#e11d48" onclick="setAccent('coral')" aria-label="Coral"></button>
+        <button class="accent-dot" data-acc="violet" style="background:#7c3aed" onclick="setAccent('violet')" aria-label="Violet"></button>
+        <button class="accent-dot" data-acc="amber" style="background:#d97706" onclick="setAccent('amber')" aria-label="Amber"></button>
+      </div>
+    </div>
+
+    <button class="tool-btn" id="btnProtoHide" style="border:1px solid var(--border);background:var(--bg-card)" onclick="toggleHideAmounts()">Hide Amounts</button>
+
+    <div class="screen-pills" aria-label="Jump to Screen">
+      <button class="screen-pill active" data-jump="login" onclick="jumpScreen('login')">1. Login</button>
+      <button class="screen-pill" data-jump="dashboard" onclick="jumpScreen('dashboard')">2. Dashboard</button>
+      <button class="screen-pill" data-jump="transactions" onclick="jumpScreen('transactions')">3. Transactions</button>
+      <button class="screen-pill" data-jump="budgets" onclick="jumpScreen('budgets')">4. Budgets &amp; Bills</button>
+      <button class="screen-pill" data-jump="capture" onclick="jumpScreen('capture')">5. SMS Parser &amp; Rules</button>
+      <button class="screen-pill" data-jump="settings" onclick="jumpScreen('settings')">6. Sync &amp; Settings</button>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       INTERACTIVE DEVICE STAGE
+       ============================================================ -->
+  <main class="stage" id="stage">
+    <div class="device-frame" id="deviceFrame">
+      <!-- Android Status Bar (hidden in Desktop mode) -->
+      <div class="android-statusbar">
+        <span>9:41</span>
+        <div class="notch-pill"></div>
+        <span>5G • 94%</span>
+      </div>
+
+      <!-- LOGIN / VAULT LOCK SCREEN -->
+      <section class="login-overlay" id="loginScreen">
+        <div class="login-card">
+          <div class="login-logo" id="loginLogo"></div>
+          <h2 style="font-size:20px;font-weight:800;letter-spacing:-0.02em">CashewFlow Vault</h2>
+          <p class="muted" style="margin:4px 0 14px">100% Free • Offline Encrypted (AES-256-GCM)</p>
+
+          <div class="segmented" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+            <button class="seg-btn active" id="authTabPass" onclick="setAuthMode('password')">Password</button>
+            <button class="seg-btn" id="authTabPin" onclick="setAuthMode('pin')">Quick PIN</button>
+          </div>
+
+          <div id="authPasswordPane">
+            <input class="login-field" id="loginUser" type="text" value="sudhansu" placeholder="Local Username" />
+            <input class="login-field" id="loginPass" type="password" value="••••••••••••" placeholder="Vault Password" />
+            <button class="btn-primary" style="width:100%;margin-top:4px" onclick="unlockVault('Password')">Unlock Encrypted Vault</button>
+          </div>
+
+          <div id="authPinPane" class="hidden">
+            <p class="muted">Tap any 4 digits to preview PIN unlock</p>
+            <div class="pin-dots" id="pinDots">
+              <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+            </div>
+            <div class="pin-pad">
+              <button class="pin-key" onclick="tapPin('1')">1</button>
+              <button class="pin-key" onclick="tapPin('2')">2</button>
+              <button class="pin-key" onclick="tapPin('3')">3</button>
+              <button class="pin-key" onclick="tapPin('4')">4</button>
+              <button class="pin-key" onclick="tapPin('5')">5</button>
+              <button class="pin-key" onclick="tapPin('6')">6</button>
+              <button class="pin-key" onclick="tapPin('7')">7</button>
+              <button class="pin-key" onclick="tapPin('8')">8</button>
+              <button class="pin-key" onclick="tapPin('9')">9</button>
+              <button class="pin-key" onclick="clearPin()" style="font-size:12px">Clear</button>
+              <button class="pin-key" onclick="tapPin('0')">0</button>
+              <button class="pin-key" onclick="unlockVault('PIN')" style="color:var(--accent);font-size:12px">OK</button>
+            </div>
+          </div>
+
+          <button class="btn-soft" style="width:100%;margin-top:10px" onclick="unlockVault('Biometric Fingerprint / Windows Hello')">
+            <span id="bioIcon"></span> Unlock with Fingerprint / Biometric
+          </button>
+
+          <p class="muted" style="margin-top:14px;font-size:11px">
+            Zero cloud plaintext • PBKDF2-SHA256 + AES-256-GCM • Auto-lock enabled
+          </p>
+        </div>
+      </section>
+
+      <!-- MAIN APP SHELL -->
+      <div class="app-shell">
+        <!-- Desktop Left Navigation Rail -->
+        <aside class="desktop-rail">
+          <div class="rail-logo">
+            <div class="rail-logo-mark" id="railLogo"></div>
+            <span>CashewFlow</span>
+          </div>
+          <button class="rail-item active" data-nav="dashboard" onclick="navigate('dashboard')"></button>
+          <button class="rail-item" data-nav="transactions" onclick="navigate('transactions')"></button>
+          <button class="rail-item" data-nav="budgets" onclick="navigate('budgets')"></button>
+          <button class="rail-item" data-nav="capture" onclick="navigate('capture')"></button>
+          <button class="rail-item" data-nav="settings" onclick="navigate('settings')"></button>
+          <div class="rail-spacer"></div>
+          <div class="rail-footer">
+            <div class="chip chip-green" style="justify-content:center">Offline Ready • 100% Free</div>
+            <button class="rail-item" onclick="lockVault()" id="railLockBtn"></button>
+          </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="app-main">
+          <div class="app-header">
+            <div class="header-title-wrap">
+              <h1 id="pageTitle">Dashboard</h1>
+              <div class="header-sub" id="pageSub">Offline Encrypted Vault • Nov 2026</div>
+            </div>
+            <div class="header-actions">
+              <button class="icon-btn" id="hdrHideBtn" title="Hide Amounts" onclick="toggleHideAmounts()"></button>
+              <button class="icon-btn" id="hdrLockBtn" title="Lock Vault" onclick="lockVault()"></button>
+            </div>
+          </div>
+
+          <div class="app-scroll" id="viewContainer"></div>
+
+          <!-- Floating Action Button (+) -->
+          <button class="fab" onclick="openAddModal()" title="Add Transaction">
+            <span id="fabIcon"></span>
+            <span class="fab-label">Add Expense</span>
+          </button>
+
+          <!-- Mobile Bottom Navigation -->
+          <nav class="bottom-nav" aria-label="Mobile Navigation">
+            <button class="bnav-btn active" data-nav="dashboard" onclick="navigate('dashboard')"></button>
+            <button class="bnav-btn" data-nav="transactions" onclick="navigate('transactions')"></button>
+            <button class="bnav-btn" data-nav="budgets" onclick="navigate('budgets')"></button>
+            <button class="bnav-btn" data-nav="capture" onclick="navigate('capture')"></button>
+            <button class="bnav-btn" data-nav="settings" onclick="navigate('settings')"></button>
+          </nav>
+        </div>
+      </div>
+
+      <!-- ADD TRANSACTION MODAL / BOTTOM SHEET -->
+      <div class="modal-backdrop hidden" id="addModal" onclick="if(event.target===this) closeAddModal()">
+        <div class="modal-sheet">
+          <div class="card-header" style="margin-bottom:8px">
+            <div class="card-title">Add Transaction</div>
+            <button class="btn-soft" onclick="closeAddModal()">Close</button>
+          </div>
+
+          <div class="segmented" style="margin-bottom:8px">
+            <button class="seg-btn active" id="txTypeExpense" onclick="setTxType('expense')">Expense</button>
+            <button class="seg-btn" id="txTypeIncome" onclick="setTxType('income')">Income</button>
+            <button class="seg-btn" id="txTypeTransfer" onclick="setTxType('transfer')">Transfer</button>
+          </div>
+
+          <div class="calc-display">
+            <div class="calc-expr" id="calcExpr"></div>
+            <div class="calc-val" id="calcVal">₹450</div>
+          </div>
+
+          <div class="calc-grid">
+            <button class="calc-key" onclick="calcPress('7')">7</button>
+            <button class="calc-key" onclick="calcPress('8')">8</button>
+            <button class="calc-key" onclick="calcPress('9')">9</button>
+            <button class="calc-key op" onclick="calcPress('/')">÷</button>
+            <button class="calc-key" onclick="calcPress('4')">4</button>
+            <button class="calc-key" onclick="calcPress('5')">5</button>
+            <button class="calc-key" onclick="calcPress('6')">6</button>
+            <button class="calc-key op" onclick="calcPress('*')">×</button>
+            <button class="calc-key" onclick="calcPress('1')">1</button>
+            <button class="calc-key" onclick="calcPress('2')">2</button>
+            <button class="calc-key" onclick="calcPress('3')">3</button>
+            <button class="calc-key op" onclick="calcPress('-')">−</button>
+            <button class="calc-key" onclick="calcPress('C')">C</button>
+            <button class="calc-key" onclick="calcPress('0')">0</button>
+            <button class="calc-key op" onclick="calcPress('=')">=</button>
+            <button class="calc-key op" onclick="calcPress('+')">+</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <div>
+              <label class="muted">Merchant / Note</label>
+              <input class="input" id="txMerchant" placeholder="e.g. Swiggy, Uber, DMart" oninput="checkAutoRule()" />
+            </div>
+            <div>
+              <label class="muted">Wallet / Account</label>
+              <select class="input" id="txWallet">
+                <option value="GPay UPI">GPay UPI (HDFC)</option>
+                <option value="HDFC Bank">HDFC Savings</option>
+                <option value="HDFC Regalia CC">HDFC Regalia ••4821</option>
+                <option value="Cash">Cash Wallet</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="autoRuleChip" class="chip chip-accent hidden" style="margin-top:8px"></div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+            <span class="muted" style="font-weight:700">Category</span>
+            <label style="font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer">
+              <input type="checkbox" id="splitToggle" onchange="toggleSplitMode()" /> Split across categories
+            </label>
+          </div>
+
+          <div class="cat-grid" id="modalCatGrid"></div>
+
+          <div id="splitPane" class="hidden" style="background:var(--bg-card-2);padding:10px;border-radius:14px;margin-top:8px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px">
+              <span>Split Breakdown</span>
+              <span id="splitRemain" class="chip chip-green">Balanced</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 90px;gap:6px;margin-bottom:6px">
+              <select class="input" id="splitCat1"><option>Groceries</option><option>Food</option><option>Shopping</option><option>Commute</option></select>
+              <input class="input" id="splitAmt1" type="number" value="300" oninput="updateSplitStatus()" />
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 90px;gap:6px">
+              <select class="input" id="splitCat2"><option>Shopping</option><option>Groceries</option><option>Food</option><option>Bills</option></select>
+              <input class="input" id="splitAmt2" type="number" value="150" oninput="updateSplitStatus()" />
+            </div>
+          </div>
+
+          <div style="margin-top:10px">
+            <label class="muted">Custom #Tags (comma-separated)</label>
+            <input class="input" id="txTags" placeholder="#vacation, #reimbursable, #office" />
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+              <button class="tag-pill" onclick="appendTag('#vacation')">+ #vacation</button>
+              <button class="tag-pill" onclick="appendTag('#reimbursable')">+ #reimbursable</button>
+              <button class="tag-pill" onclick="appendTag('#office')">+ #office</button>
+              <button class="tag-pill" onclick="appendTag('#family')">+ #family</button>
+            </div>
+          </div>
+
+          <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveModalTransaction()">Save Encrypted Transaction</button>
+        </div>
+      </div>
+
+      <!-- TOAST -->
+      <div class="toast hidden" id="toast"></div>
+    </div>
+  </main>
+
+  <script>
+    /* ============================================================
+       SELF-CONTAINED INLINE SVG ICONS (ZERO CDN)
+       ============================================================ */
+    const ICONS = {
+      wallet: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>',
+      home: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>',
+      list: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+      target: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+      sparkles: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></svg>',
+      settings: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+      plus: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+      lock: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+      eye: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+      eyeOff: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-6.4 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>',
+      fingerprint: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .13-5.35 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>',
+      card: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+      food: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v7"/></svg>',
+      cart: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>',
+      car: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>',
+      bolt: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+      bag: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
+      swap: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 3l4 4-4 4"/><path d="M20 7H4"/><path d="M8 21l-4-4 4-4"/><path d="M4 17h16"/></svg>',
+      income: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+      bell: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+      shield: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+    };
+
+    /* ============================================================
+       PROTOTYPE STATE & SAMPLE INDIAN DATA (INR)
+       ============================================================ */
+    const CURRENCIES = {
+      INR: { symbol: '₹', locale: 'en-IN', rate: 1 },
+      USD: { symbol: '$', locale: 'en-US', rate: 0.012 },
+      EUR: { symbol: '€', locale: 'de-DE', rate: 0.011 },
+      GBP: { symbol: '£', locale: 'en-GB', rate: 0.0095 }
+    };
+
+    const CATEGORIES = [
+      { id: 'Food', icon: 'food', color: '#f97316', bg: 'rgba(249,115,22,0.14)' },
+      { id: 'Groceries', icon: 'cart', color: '#10b981', bg: 'rgba(16,185,129,0.14)' },
+      { id: 'Commute', icon: 'car', color: '#3b82f6', bg: 'rgba(59,130,246,0.14)' },
+      { id: 'Bills', icon: 'bolt', color: '#eab308', bg: 'rgba(234,179,8,0.16)' },
+      { id: 'Shopping', icon: 'bag', color: '#ec4899', bg: 'rgba(236,72,153,0.14)' },
+      { id: 'Salary', icon: 'income', color: '#14b8a6', bg: 'rgba(20,184,166,0.14)' },
+      { id: 'Transfer', icon: 'swap', color: '#6366f1', bg: 'rgba(99,102,241,0.14)' }
+    ];
+
+    const state = {
+      locked: true,
+      screen: 'dashboard',
+      period: 'monthly',
+      hideAmounts: false,
+      currency: 'INR',
+      showFormula: false,
+      txFilter: 'all',
+      txSearch: '',
+      pinBuffer: '',
+      modalType: 'expense',
+      modalCategory: 'Food',
+      calcBuffer: '450',
+      ccBill: {
+        cardName: 'HDFC Regalia',
+        last4: '4821',
+        totalDue: 18450,
+        minDue: 925,
+        dueDate: '25 Nov 2026',
+        daysLeft: 3,
+        paid: false
+      },
+      wallets: [
+        { name: 'HDFC Savings', type: 'Bank', balance: 194500, last4: '9042', color: '#0d9488' },
+        { name: 'GPay UPI', type: 'UPI', balance: 42000, last4: 'UPI', color: '#3b82f6' },
+        { name: 'Cash Wallet', type: 'Cash', balance: 12000, last4: 'CASH', color: '#10b981' },
+        { name: 'HDFC Regalia CC', type: 'Credit Card', balance: -24850, limit: 150000, last4: '4821', color: '#f43f5e' }
+      ],
+      transactions: [
+        { id: 1, merchant: 'Swiggy Instamart', type: 'expense', amount: 640, category: 'Food', wallet: 'GPay UPI', date: 'Today, 1:15 PM', tags: ['#office'], splits: null, isSelfTransfer: false, source: 'UPI Notif' },
+        { id: 2, merchant: 'DMart Supermarket', type: 'expense', amount: 2450, category: 'Groceries', wallet: 'HDFC Regalia CC', date: 'Today, 10:40 AM', tags: ['#family'], splits: [{ cat: 'Groceries', amt: 1850 }, { cat: 'Shopping', amt: 600 }], isSelfTransfer: false, source: 'SMS' },
+        { id: 3, merchant: 'Uber Auto', type: 'expense', amount: 215, category: 'Commute', wallet: 'GPay UPI', date: 'Yesterday', tags: ['#reimbursable'], splits: null, isSelfTransfer: false, source: 'UPI Notif' },
+        { id: 4, merchant: 'Self Transfer → HDFC CC', type: 'transfer', amount: 12000, category: 'Transfer', wallet: 'HDFC Bank', date: '20 Nov', tags: [], splits: null, isSelfTransfer: true, source: 'Auto-Detected' },
+        { id: 5, merchant: 'JioFiber Broadband', type: 'expense', amount: 1179, category: 'Bills', wallet: 'HDFC Bank', date: '18 Nov', tags: ['#recurring'], splits: null, isSelfTransfer: false, source: 'Auto-Debit' },
+        { id: 6, merchant: 'Monthly Salary Credit', type: 'income', amount: 85000, category: 'Salary', wallet: 'HDFC Bank', date: '01 Nov', tags: [], splits: null, isSelfTransfer: false, source: 'Bank SMS' },
+        { id: 7, merchant: 'IndiGo Flight Booking', type: 'expense', amount: 6450, category: 'Shopping', wallet: 'HDFC Regalia CC', date: '14 Nov', tags: ['#vacation'], splits: null, isSelfTransfer: false, source: 'SMS' }
+      ],
+      budgets: [
+        { name: 'Food & Dining', cat: 'Food', spent: 4920, limit: 6000 },
+        { name: 'Groceries', cat: 'Groceries', spent: 4650, limit: 8000 },
+        { name: 'Shopping & Lifestyle', cat: 'Shopping', spent: 6480, limit: 6000 },
+        { name: 'Commute & Fuel', cat: 'Commute', spent: 2150, limit: 4000 }
+      ],
+      goals: [
+        { name: 'Emergency Fund', current: 145000, target: 200000, color: '#0d9488' },
+        { name: 'MacBook Air M4', current: 78000, target: 115000, color: '#6366f1' }
+      ],
+      recurring: [
+        { title: 'HDFC Regalia Credit Card Bill', kind: 'Credit Card SMS', amount: 18450, due: 'Due in 3 days (25 Nov)', urgent: true },
+        { title: 'Home Loan EMI (HDFC)', kind: 'EMI', amount: 24500, due: 'Due 05 Dec', urgent: false },
+        { title: 'Netflix Standard OTT', kind: 'Subscription', amount: 649, due: 'Due 01 Dec', urgent: false },
+        { title: 'JioFiber Broadband', kind: 'Utility Bill', amount: 1179, due: 'Due 18 Dec', urgent: false }
+      ],
+      rules: [
+        { pattern: 'swiggy|zomato', category: 'Food', tag: '#dining', hits: 14 },
+        { pattern: 'uber|ola|rapido', category: 'Commute', tag: '#travel', hits: 9 },
+        { pattern: 'dmart|blinkit|kirana', category: 'Groceries', tag: '#home', hits: 11 },
+        { pattern: 'netflix|spotify|jio', category: 'Bills', tag: '#recurring', hits: 6 }
+      ],
+      parsedPreview: null
+    };
+
+    const SAMPLE_SMS = {
+      debit: 'HDFC Bank: Rs. 640.00 debited from a/c **9042 on 22-Nov-26 to VPA swiggy@axisbank (UPI Ref 63261904412).',
+      upi: 'Google Pay: You paid ₹320.00 to Sharma Local Kirana Store via HDFC Bank ••9042.',
+      ccbill: 'HDFC Bank Credit Card xx4821 statement generated. Total Amount Due Rs 18,450.00, Min Due Rs 925.00, Due Date 25-Nov-2026. Pay on time to avoid late fees.',
+      self: 'ICICI/HDFC Alert: Rs. 12,000.00 transferred from HDFC Savings **9042 towards HDFC Credit Card xx4821 bill payment.'
+    };
+
+    /* ============================================================
+       UTILITIES
+       ============================================================ */
+    function fmt(amountInr, showSign = false) {
+      if (state.hideAmounts) return `${CURRENCIES[state.currency].symbol} •••••`;
+      const cfg = CURRENCIES[state.currency];
+      const converted = Math.abs(amountInr) * cfg.rate;
+      const formatted = converted.toLocaleString(cfg.locale, { maximumFractionDigits: cfg.rate === 1 ? 0 : 2 });
+      const sign = amountInr < 0 ? '−' : (showSign && amountInr > 0 ? '+' : '');
+      return `${sign}${cfg.symbol}${formatted}`;
+    }
+
+    function catMeta(name) {
+      return CATEGORIES.find(c => c.id === name) || CATEGORIES[0];
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.add('hidden'), 2600);
+    }
+
+    function esc(str) {
+      return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    }
+
+    /* ============================================================
+       PROTOTYPE TOOLBAR CONTROLS
+       ============================================================ */
+    function setViewport(mode) {
+      const stage = document.getElementById('stage');
+      stage.classList.toggle('desktop-mode', mode === 'desktop');
+      document.getElementById('btnViewMobile').classList.toggle('active', mode === 'mobile');
+      document.getElementById('btnViewDesktop').classList.toggle('active', mode === 'desktop');
+    }
+
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.getElementById('btnThemeLight').classList.toggle('active', theme === 'light');
+      document.getElementById('btnThemeDark').classList.toggle('active', theme === 'dark');
+      renderCurrentView();
+    }
+
+    function setAccent(acc) {
+      document.documentElement.setAttribute('data-accent', acc);
+      document.querySelectorAll('.accent-dot').forEach(d => d.classList.toggle('active', d.dataset.acc === acc));
+      renderCurrentView();
+    }
+
+    function toggleHideAmounts() {
+      state.hideAmounts = !state.hideAmounts;
+      document.getElementById('btnProtoHide').classList.toggle('active', state.hideAmounts);
+      document.getElementById('hdrHideBtn').innerHTML = state.hideAmounts ? ICONS.eyeOff : ICONS.eye;
+      renderCurrentView();
+      showToast(state.hideAmounts ? 'Privacy Mode ON: Amounts hidden' : 'Privacy Mode OFF: Amounts visible');
+    }
+
+    function jumpScreen(target) {
+      if (target === 'login') {
+        lockVault();
+      } else {
+        state.locked = false;
+        document.getElementById('loginScreen').classList.add('hidden');
+        navigate(target);
+      }
+      updateJumpPills(target);
+    }
+
+    function updateJumpPills(activeKey) {
+      document.querySelectorAll('.screen-pill').forEach(p => p.classList.toggle('active', p.dataset.jump === activeKey));
+    }
+
+    /* ============================================================
+       LOGIN / AUTH SIMULATION
+       ============================================================ */
+    function setAuthMode(mode) {
+      document.getElementById('authTabPass').classList.toggle('active', mode === 'password');
+      document.getElementById('authTabPin').classList.toggle('active', mode === 'pin');
+      document.getElementById('authPasswordPane').classList.toggle('hidden', mode !== 'password');
+      document.getElementById('authPinPane').classList.toggle('hidden', mode !== 'pin');
+    }
+
+    function tapPin(digit) {
+      if (state.pinBuffer.length >= 4) return;
+      state.pinBuffer += digit;
+      renderPinDots();
+      if (state.pinBuffer.length === 4) {
+        setTimeout(() => { state.pinBuffer = ''; renderPinDots(); unlockVault('Quick PIN'); }, 220);
+      }
+    }
+    function clearPin() { state.pinBuffer = ''; renderPinDots(); }
+    function renderPinDots() {
+      document.querySelectorAll('#pinDots .pin-dot').forEach((d, i) => d.classList.toggle('filled', i < state.pinBuffer.length));
+    }
+
+    function unlockVault(method) {
+      state.locked = false;
+      document.getElementById('loginScreen').classList.add('hidden');
+      updateJumpPills(state.screen);
+      renderCurrentView();
+      showToast(`Vault unlocked via ${method} (AES-256-GCM key in memory)`);
+    }
+
+    function lockVault() {
+      state.locked = true;
+      document.getElementById('loginScreen').classList.remove('hidden');
+      updateJumpPills('login');
+      showToast('Vault locked • Encryption key cleared from memory');
+    }
+
+    /* ============================================================
+       NAVIGATION
+       ============================================================ */
+    const NAV_META = {
+      dashboard:    { label: 'Dashboard', sub: 'Safe-to-Spend • Graphical Overview', icon: 'home' },
+      transactions: { label: 'Transactions', sub: 'Search, Splits, #Tags & Self-Transfers', icon: 'list' },
+      budgets:      { label: 'Budgets & Bills', sub: '75%/100% Alerts • Goals • CC & EMI Reminders', icon: 'target' },
+      capture:      { label: 'Smart Capture', sub: 'On-Device SMS/UPI Parser • Rules • AA Wallets', icon: 'sparkles' },
+      settings:     { label: 'Settings & Sync', sub: 'Currency • Security • Encrypted Google Drive', icon: 'settings' }
+    };
+
+    function navigate(screen) {
+      state.screen = screen;
+      document.getElementById('pageTitle').textContent = NAV_META[screen].label;
+      document.getElementById('pageSub').textContent = NAV_META[screen].sub;
+      document.querySelectorAll('[data-nav]').forEach(el => el.classList.toggle('active', el.dataset.nav === screen));
+      updateJumpPills(screen);
+      renderCurrentView();
+    }
+
+    /* ============================================================
+       SVG CHARTS (ZERO EXTERNAL CDN)
+       ============================================================ */
+    function renderTrendSVG(period) {
+      const dataMap = {
+        daily:   { labels: ['9AM','11AM','1PM','3PM','5PM','7PM','9PM'], vals: [180, 420, 640, 215, 0, 890, 310] },
+        weekly:  { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], vals: [1120, 840, 1950, 620, 2450, 3120, 1490] },
+        monthly: { labels: ['W1','W2','W3','W4'], vals: [8400, 11250, 9680, 6820] }
+      };
+      const d = dataMap[period];
+      const max = Math.max(...d.vals, 1) * 1.15;
+      const w = 320, h = 128, padX = 18, padY = 16;
+      const stepX = (w - padX * 2) / Math.max(d.vals.length - 1, 1);
+
+      const pts = d.vals.map((v, i) => [
+        padX + i * stepX,
+        h - padY - (v / max) * (h - padY * 2 - 10)
+      ]);
+      const poly = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+      const area = `${padX},${h - padY} ${poly} ${pts[pts.length - 1][0].toFixed(1)},${h - padY}`;
+
+      const circles = pts.map((p, i) =>
+        `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="var(--accent)" stroke="var(--bg-card)" stroke-width="2"><title>${d.labels[i]}: ${fmt(d.vals[i])}</title></circle>`
+      ).join('');
+
+      const xLabels = pts.map((p, i) =>
+        `<text x="${p[0].toFixed(1)}" y="${h - 2}" text-anchor="middle" font-size="10" fill="var(--text-3)" font-weight="600">${d.labels[i]}</text>`
+      ).join('');
+
+      return `
+        <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
+          <defs>
+            <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.32"/>
+              <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.01"/>
+            </linearGradient>
+          </defs>
+          <line x1="${padX}" y1="${h - padY}" x2="${w - padX}" y2="${h - padY}" stroke="var(--border)" stroke-width="1"/>
+          <polygon points="${area}" fill="url(#trendGrad)"/>
+          <polyline points="${poly}" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+          ${circles}
+          ${xLabels}
+        </svg>`;
+    }
+
+    function renderDonutSVG(period) {
+      const mult = period === 'daily' ? 0.14 : (period === 'weekly' ? 0.35 : 1);
+      const slices = [
+        { name: 'Food', val: Math.round(4920 * mult), color: '#f97316' },
+        { name: 'Groceries', val: Math.round(4650 * mult), color: '#10b981' },
+        { name: 'Shopping', val: Math.round(6480 * mult), color: '#ec4899' },
+        { name: 'Commute', val: Math.round(2150 * mult), color: '#3b82f6' },
+        { name: 'Bills', val: Math.round(3180 * mult), color: '#eab308' }
+      ];
+      const total = slices.reduce((s, x) => s + x.val, 0);
+      const r = 46, c = 2 * Math.PI * r;
+      let offset = 0;
+      const rings = slices.map(s => {
+        const len = (s.val / total) * c;
+        const seg = `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${s.color}" stroke-width="15" stroke-dasharray="${len.toFixed(1)} ${(c - len).toFixed(1)}" stroke-dashoffset="${(-offset).toFixed(1)}" transform="rotate(-90 60 60)"><title>${s.name}: ${fmt(s.val)}</title></circle>`;
+        offset += len;
+        return seg;
+      }).join('');
+
+      const legend = slices.map(s => `
+        <div class="legend-item">
+          <div class="legend-left"><span class="legend-dot" style="background:${s.color}"></span><span>${s.name}</span></div>
+          <span style="font-weight:700">${fmt(s.val)} <span class="muted">(${Math.round(s.val / total * 100)}%)</span></span>
+        </div>`).join('');
+
+      return `
+        <div class="donut-layout">
+          <svg width="120" height="120" viewBox="0 0 120 120" style="flex-shrink:0">
+            ${rings}
+            <text x="60" y="57" text-anchor="middle" font-size="10" fill="var(--text-3)" font-weight="700">SPENT</text>
+            <text x="60" y="72" text-anchor="middle" font-size="12.5" fill="var(--text-1)" font-weight="800">${fmt(total)}</text>
+          </svg>
+          <div class="donut-legend">${legend}</div>
+        </div>`;
+    }
+
+    function renderTxRow(tx) {
+      const m = catMeta(tx.category);
+      const tagsHtml = (tx.tags || []).map(t => `<span class="tag-pill">${esc(t)}</span>`).join('');
+      const splitBadge = tx.splits ? `<span class="chip chip-blue">Split ×${tx.splits.length}</span>` : '';
+      const selfBadge = tx.isSelfTransfer ? `<span class="chip">Self-Transfer • Excluded</span>` : '';
+      const amtClass = tx.type === 'income' ? 'income' : (tx.type === 'transfer' ? 'transfer' : 'expense');
+      const signed = tx.type === 'income' ? tx.amount : (tx.type === 'transfer' ? tx.amount : -tx.amount);
+      return `
+        <div class="tx-row" onclick="showToast('${esc(tx.merchant)} • ${esc(tx.wallet)} • Source: ${esc(tx.source)}')">
+          <div class="cat-badge" style="background:${m.bg};color:${m.color}">${ICONS[m.icon]}</div>
+          <div class="tx-info">
+            <div class="tx-title">${esc(tx.merchant)} ${splitBadge} ${selfBadge}</div>
+            <div class="tx-meta"><span>${esc(tx.category)} • ${esc(tx.wallet)} • ${esc(tx.date)}</span> ${tagsHtml}</div>
+          </div>
+          <div class="tx-amount ${amtClass}">${tx.type === 'transfer' ? fmt(tx.amount) : fmt(signed, true)}</div>
+        </div>`;
+    }
+
+    /* ============================================================
+       VIEWS
+       ============================================================ */
+    function renderCurrentView() {
+      const el = document.getElementById('viewContainer');
+      if (state.screen === 'dashboard') el.innerHTML = viewDashboard();
+      else if (state.screen === 'transactions') el.innerHTML = viewTransactions();
+      else if (state.screen === 'budgets') el.innerHTML = viewBudgets();
+      else if (state.screen === 'capture') el.innerHTML = viewCapture();
+      else if (state.screen === 'settings') el.innerHTML = viewSettings();
+    }
+
+    function viewDashboard() {
+      const liquid = state.wallets.filter(w => w.balance > 0).reduce((s, w) => s + w.balance, 0);
+      const ccDues = Math.abs(state.wallets.filter(w => w.balance < 0).reduce((s, w) => s + w.balance, 0));
+      const netWorth = liquid - ccDues;
+      const periodOutflow = state.period === 'daily' ? 3090 : (state.period === 'weekly' ? 11590 : 28880);
+      const periodInflow = state.period === 'daily' ? 0 : (state.period === 'weekly' ? 4500 : 85000);
+
+      const ccBanner = state.ccBill.paid ? '' : `
+        <div class="cc-alert-banner">
+          <div class="cc-alert-left">
+            <div class="cc-alert-icon">${ICONS.bell}</div>
+            <div>
+              <div class="cc-alert-title">${state.ccBill.cardName} ••${state.ccBill.last4} Bill Due in ${state.ccBill.daysLeft} Days</div>
+              <div class="cc-alert-sub">Total Due <strong>${fmt(state.ccBill.totalDue)}</strong> • Min Due ${fmt(state.ccBill.minDue)} • Due ${state.ccBill.dueDate} • <em>Detected from Android SMS</em></div>
+            </div>
+          </div>
+          <button class="btn-primary" style="padding:7px 12px;font-size:12px" onclick="markCcPaid()">Mark Paid</button>
+        </div>`;
+
+      return `
+        <div class="stack">
+          ${ccBanner}
+
+          <div class="grid-2">
+            <!-- Safe-to-Spend Hero -->
+            <div class="card hero-safe">
+              <div class="hero-label">${ICONS.shield} SAFE-TO-SPEND DAILY ALLOWANCE</div>
+              <div class="hero-amount">${fmt(1140)} <span style="font-size:13px;font-weight:600;opacity:0.88">/ today</span></div>
+              <div class="hero-sub">8 days left in Nov • You are <strong>On Track</strong> for your savings target.</div>
+              <button class="hero-pill-btn" onclick="state.showFormula=!state.showFormula;renderCurrentView()">
+                ${state.showFormula ? 'Hide formula' : 'See calculation breakdown'}
+              </button>
+              ${state.showFormula ? `
+                <div class="formula-box">
+                  Monthly Income (${fmt(85000)}) − Fixed Bills &amp; EMIs (${fmt(32000)}) − Savings Goal (${fmt(15000)}) − Spent (${fmt(28880)}) = <strong>${fmt(9120)}</strong> ÷ 8 days = <strong>${fmt(1140)}/day</strong>
+                </div>` : ''}
+            </div>
+
+            <!-- Cash Flow & Net Worth Snapshot -->
+            <div class="card">
+              <div class="card-header" style="margin-bottom:6px">
+                <div class="card-title">${ICONS.wallet} Cash Flow &amp; Net Worth</div>
+                <span class="chip chip-green">Self-Transfers Excluded</span>
+              </div>
+              <div style="font-size:26px;font-weight:800;letter-spacing:-0.03em">${fmt(netWorth)} <span class="muted" style="font-weight:600">Net Worth</span></div>
+              <div class="nw-grid">
+                <div class="nw-box">
+                  <div class="nw-box-label">Bank + UPI + Cash</div>
+                  <div class="nw-box-val" style="color:var(--green)">${fmt(liquid)}</div>
+                </div>
+                <div class="nw-box">
+                  <div class="nw-box-label">Credit Card Dues</div>
+                  <div class="nw-box-val" style="color:var(--red)">${fmt(-ccDues)}</div>
+                </div>
+                <div class="nw-box">
+                  <div class="nw-box-label">${state.period.toUpperCase()} Outflow</div>
+                  <div class="nw-box-val">${fmt(periodOutflow)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Period Switcher -->
+          <div class="segmented">
+            <button class="seg-btn ${state.period==='daily'?'active':''}" onclick="state.period='daily';renderCurrentView()">Daily</button>
+            <button class="seg-btn ${state.period==='weekly'?'active':''}" onclick="state.period='weekly';renderCurrentView()">Weekly</button>
+            <button class="seg-btn ${state.period==='monthly'?'active':''}" onclick="state.period='monthly';renderCurrentView()">Monthly</button>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Spending Trend (${state.period})</div>
+                <span class="chip chip-accent">Inflow ${fmt(periodInflow)}</span>
+              </div>
+              <div class="chart-wrap">${renderTrendSVG(state.period)}</div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Category Breakdown</div>
+                <span class="muted">Splits attributed accurately</span>
+              </div>
+              ${renderDonutSVG(state.period)}
+            </div>
+          </div>
+
+          <!-- Recent Transactions -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Recent Activity</div>
+              <button class="btn-soft" onclick="navigate('transactions')">View All</button>
+            </div>
+            <div class="tx-list">
+              ${state.transactions.slice(0, 5).map(renderTxRow).join('')}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function viewTransactions() {
+      const q = state.txSearch.toLowerCase();
+      const filtered = state.transactions.filter(t => {
+        if (state.txFilter === 'expense' && t.type !== 'expense') return false;
+        if (state.txFilter === 'income' && t.type !== 'income') return false;
+        if (state.txFilter === 'transfer' && !t.isSelfTransfer) return false;
+        if (state.txFilter === 'split' && !t.splits) return false;
+        if (q && !`${t.merchant} ${t.category} ${t.wallet} ${(t.tags||[]).join(' ')}`.toLowerCase().includes(q)) return false;
+        return true;
+      });
+
+      return `
+        <div class="stack">
+          <div class="card" style="padding:12px">
+            <input class="input" placeholder="Search merchant, category, wallet, or #tag..." value="${esc(state.txSearch)}" oninput="state.txSearch=this.value;renderCurrentView()" />
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+              ${['all','expense','income','transfer','split'].map(f =>
+                `<button class="screen-pill ${state.txFilter===f?'active':''}" onclick="state.txFilter='${f}';renderCurrentView()">${f==='all'?'All':f==='transfer'?'Self-Transfers':f==='split'?'Split Bills':f[0].toUpperCase()+f.slice(1)}</button>`
+              ).join('')}
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Transactions (${filtered.length})</div>
+              <span class="muted">Tap any row for source details</span>
+            </div>
+            <div class="tx-list">
+              ${filtered.length ? filtered.map(renderTxRow).join('') : '<p class="muted" style="text-align:center;padding:20px">No matching transactions</p>'}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function viewBudgets() {
+      const budgetCards = state.budgets.map(b => {
+        const pct = Math.round((b.spent / b.limit) * 100);
+        const status = pct >= 100
+          ? { cls: 'chip-red', text: '100% Limit Exceeded', bar: 'var(--red)' }
+          : pct >= 75
+            ? { cls: 'chip-amber', text: '75% Alert Triggered', bar: 'var(--amber)' }
+            : { cls: 'chip-green', text: 'On Track', bar: 'var(--green)' };
+        return `
+          <div class="card">
+            <div class="card-header" style="margin-bottom:4px">
+              <div class="card-title">${esc(b.name)}</div>
+              <span class="chip ${status.cls}">${status.text}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700">
+              <span>${fmt(b.spent)} spent</span>
+              <span class="muted">Cap ${fmt(b.limit)} (${pct}%)</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:${Math.min(pct, 100)}%;background:${status.bar}"></div>
+            </div>
+          </div>`;
+      }).join('');
+
+      const goalCards = state.goals.map((g, idx) => {
+        const pct = Math.min(100, Math.round((g.current / g.target) * 100));
+        const r = 24, c = 2 * Math.PI * r;
+        const dash = (pct / 100) * c;
+        return `
+          <div class="card" style="display:flex;align-items:center;gap:14px">
+            <svg width="62" height="62" viewBox="0 0 62 62" style="flex-shrink:0">
+              <circle cx="31" cy="31" r="${r}" fill="none" stroke="var(--bg-card-2)" stroke-width="6"/>
+              <circle cx="31" cy="31" r="${r}" fill="none" stroke="${g.color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 31 31)"/>
+              <text x="31" y="35" text-anchor="middle" font-size="11" font-weight="800" fill="var(--text-1)">${pct}%</text>
+            </svg>
+            <div style="flex:1">
+              <div style="font-weight:800;font-size:14px">${esc(g.name)}</div>
+              <div class="muted">${fmt(g.current)} of ${fmt(g.target)}</div>
+            </div>
+            <button class="btn-soft" onclick="contributeGoal(${idx})">+ ${fmt(5000)}</button>
+          </div>`;
+      }).join('');
+
+      const recRows = state.recurring.map(r => `
+        <div class="tx-row">
+          <div class="cat-badge" style="background:${r.urgent?'var(--amber-soft)':'var(--accent-tint)'};color:${r.urgent?'var(--amber)':'var(--accent)'}">${ICONS.bell}</div>
+          <div class="tx-info">
+            <div class="tx-title">${esc(r.title)} <span class="chip ${r.urgent?'chip-amber':''}">${esc(r.kind)}</span></div>
+            <div class="tx-meta">${esc(r.due)} • Reminder: 5d, 2d &amp; due day</div>
+          </div>
+          <div class="tx-amount expense">${fmt(r.amount)}</div>
+        </div>`).join('');
+
+      return `
+        <div class="stack">
+          <div class="grid-2">${budgetCards}</div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">${ICONS.bell} Upcoming Bills, EMIs &amp; Credit Card Reminders</div></div>
+            <div class="tx-list">${recRows}</div>
+          </div>
+          <div class="grid-2">${goalCards}</div>
+        </div>`;
+    }
+
+    function viewCapture() {
+      const walletCards = state.wallets.map(w => `
+        <div class="card">
+          <div class="card-header" style="margin-bottom:6px">
+            <div class="card-title">${ICONS.card} ${esc(w.name)}</div>
+            <span class="chip">${esc(w.type)} ••${esc(w.last4)}</span>
+          </div>
+          <div style="font-size:20px;font-weight:800;color:${w.balance<0?'var(--red)':'var(--text-1)'}">${fmt(w.balance)}</div>
+          ${w.limit ? `
+            <div class="progress-track"><div class="progress-fill" style="width:${Math.round(Math.abs(w.balance)/w.limit*100)}%;background:var(--red)"></div></div>
+            <div class="muted">Credit Utilization: ${Math.round(Math.abs(w.balance)/w.limit*100)}% of ${fmt(w.limit)}</div>
+          ` : '<div class="muted" style="margin-top:6px">Synced locally • Encrypted</div>'}
+        </div>`).join('');
+
+      const parsedBox = state.parsedPreview ? `
+        <div style="margin-top:12px;padding:12px;border-radius:14px;background:var(--accent-tint);border:1px solid var(--accent)">
+          <div style="font-weight:800;font-size:13px;margin-bottom:6px">Parsed On-Device (Zero Server Calls)</div>
+          <div style="font-size:12px;line-height:1.6">
+            <strong>Kind:</strong> ${esc(state.parsedPreview.kind)}<br/>
+            <strong>Amount:</strong> ${fmt(state.parsedPreview.amount)} ${state.parsedPreview.minDue ? `| <strong>Min Due:</strong> ${fmt(state.parsedPreview.minDue)}` : ''}<br/>
+            <strong>Merchant / Card:</strong> ${esc(state.parsedPreview.merchant)} ${state.parsedPreview.dueDate ? `| <strong>Due:</strong> ${esc(state.parsedPreview.dueDate)}` : ''}<br/>
+            <strong>Auto-Category:</strong> <span class="chip chip-accent">${esc(state.parsedPreview.category)}</span>
+            ${state.parsedPreview.isSelfTransfer ? '<span class="chip chip-blue">Self-Transfer Detected (Excluded)</span>' : ''}
+          </div>
+          <button class="btn-primary" style="margin-top:10px;padding:7px 14px;font-size:12px" onclick="commitParsedPreview()">Add to Vault</button>
+        </div>` : '';
+
+      const rulesHtml = state.rules.map(r => `
+        <div class="tx-row">
+          <div class="tx-info">
+            <div class="tx-title"><code>${esc(r.pattern)}</code> → <span class="chip chip-accent">${esc(r.category)}</span></div>
+            <div class="tx-meta">Auto-tag: ${esc(r.tag)} • Matched ${r.hits} times</div>
+          </div>
+        </div>`).join('');
+
+      return `
+        <div class="stack">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">${ICONS.sparkles} On-Device SMS, UPI &amp; Credit Card Bill Parser</div>
+              <span class="chip chip-green">100% Local</span>
+            </div>
+            <p class="muted" style="margin-bottom:8px">Test sample Indian bank SMS, GPay UPI alerts, or Credit Card Bill SMS:</p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+              <button class="btn-soft" onclick="loadSampleSms('debit')">HDFC Debit SMS</button>
+              <button class="btn-soft" onclick="loadSampleSms('upi')">GPay UPI Alert</button>
+              <button class="btn-soft" onclick="loadSampleSms('ccbill')">Credit Card Bill SMS</button>
+              <button class="btn-soft" onclick="loadSampleSms('self')">Self-Transfer SMS</button>
+            </div>
+            <textarea class="input textarea" id="smsInput" placeholder="Paste any bank SMS, credit card statement alert, or UPI notification...">${esc(SAMPLE_SMS.ccbill)}</textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+              <button class="btn-primary" onclick="parseSmsNow()">Parse On-Device</button>
+              <button class="btn-soft" onclick="showToast('RBI Account Aggregator (ReBIT JSON / Bank CSV) importer ready in Phase 3')">Import RBI AA / Bank CSV</button>
+            </div>
+            ${parsedBox}
+          </div>
+
+          <div class="grid-2">${walletCards}</div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Auto-Categorization Rules</div>
+              <button class="btn-soft" onclick="addDemoRule()">+ Add Local UPI Rule</button>
+            </div>
+            <div class="tx-list">${rulesHtml}</div>
+          </div>
+        </div>`;
+    }
+
+    function viewSettings() {
+      return `
+        <div class="stack">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><div class="card-title">${ICONS.shield} Security &amp; Vault Access</div></div>
+              <div class="stack" style="gap:10px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div><div style="font-weight:700;font-size:13px">Biometric / Fingerprint Lock</div><div class="muted">Android Fingerprint • Windows Hello • Touch ID</div></div>
+                  <span class="chip chip-green">Enabled</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div><div style="font-weight:700;font-size:13px">Auto-Lock Inactivity Timer</div><div class="muted">Wipes AES-256-GCM key from memory</div></div>
+                  <span class="chip">5 mins</span>
+                </div>
+                <button class="btn-soft" onclick="lockVault()">Lock Vault Now</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><div class="card-title">Display &amp; Currency</div></div>
+              <label class="muted">Default Currency</label>
+              <select class="input" style="margin-top:6px;margin-bottom:10px" onchange="state.currency=this.value;renderCurrentView();showToast('Switched currency to '+this.value)">
+                <option value="INR" ${state.currency==='INR'?'selected':''}>INR (₹) — Indian Rupee</option>
+                <option value="USD" ${state.currency==='USD'?'selected':''}>USD ($) — US Dollar</option>
+                <option value="EUR" ${state.currency==='EUR'?'selected':''}>EUR (€) — Euro</option>
+                <option value="GBP" ${state.currency==='GBP'?'selected':''}>GBP (£) — British Pound</option>
+              </select>
+              <button class="btn-soft" style="width:100%" onclick="toggleHideAmounts()">Toggle Privacy Mode (Hide Amounts)</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Free Cross-Device Sync (Windows ↔ Android ↔ MacBook)</div>
+              <span class="chip chip-green">E2E Encrypted</span>
+            </div>
+            <p class="muted" style="line-height:1.5;margin-bottom:12px">
+              Data is encrypted locally with <strong>AES-256-GCM</strong> before leaving your device. Sync free via your personal Google Drive AppData folder or offline Smart-Merge <code>.enc.json</code> files.
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-primary" onclick="showToast('Simulated AES-256-GCM encrypted Google Drive sync complete!')">Sync Encrypted to Google Drive</button>
+              <button class="btn-soft" onclick="showToast('Exported Smart-Merge backup: cashew-vault-2026-11.enc.json')">Export .enc.json Backup</button>
+              <button class="btn-soft" onclick="showToast('Exported UTF-8 CSV report with INR formatting')">Export CSV</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    /* ============================================================
+       INTERACTIVE ACTIONS
+       ============================================================ */
+    function markCcPaid() {
+      state.ccBill.paid = true;
+      state.transactions.unshift({
+        id: Date.now(),
+        merchant: `Paid ${state.ccBill.cardName} ••${state.ccBill.last4}`,
+        type: 'transfer',
+        amount: state.ccBill.totalDue,
+        category: 'Transfer',
+        wallet: 'HDFC Bank',
+        date: 'Just now',
+        tags: ['#cc-bill'],
+        splits: null,
+        isSelfTransfer: true,
+        source: 'Bill Paid'
+      });
+      renderCurrentView();
+      showToast('Credit Card Bill marked Paid (logged as Self-Transfer)');
+    }
+
+    function contributeGoal(idx) {
+      state.goals[idx].current = Math.min(state.goals[idx].target, state.goals[idx].current + 5000);
+      renderCurrentView();
+      showToast(`Added ${fmt(5000)} to ${state.goals[idx].name}`);
+    }
+
+    function loadSampleSms(key) {
+      document.getElementById('smsInput').value = SAMPLE_SMS[key];
+      parseSmsNow();
+    }
+
+    function parseSmsNow() {
+      const text = document.getElementById('smsInput').value || '';
+      const isCcBill = /statement|total\s+amount\s+due|min\s+due/i.test(text);
+      const isSelf = /self|towards.*credit card|transferred from/i.test(text);
+      const amtMatch = text.match(/(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);
+      const minMatch = text.match(/min(?:imum)?\s*due\s*(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+      const dueMatch = text.match(/due\s*date\s*[:\-]?\s*([0-9]{1,2}[-\s][A-Za-z]{3}[-\s][0-9]{2,4})/i);
+      const cardMatch = text.match(/(?:xx|\*\*|••)(\d{4})/);
+
+      const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, '')) : 500;
+      let category = 'Food';
+      let merchant = 'Parsed Merchant';
+      if (isCcBill) {
+        category = 'Bills';
+        merchant = `Credit Card ••${cardMatch ? cardMatch[1] : '4821'} Bill`;
+      } else if (isSelf) {
+        category = 'Transfer';
+        merchant = `Self Transfer → CC ••${cardMatch ? cardMatch[1] : '4821'}`;
+      } else if (/swiggy|zomato/i.test(text)) { category = 'Food'; merchant = 'Swiggy'; }
+      else if (/kirana|dmart/i.test(text)) { category = 'Groceries'; merchant = 'Sharma Local Kirana'; }
+      else if (/uber|ola/i.test(text)) { category = 'Commute'; merchant = 'Uber'; }
+
+      state.parsedPreview = {
+        kind: isCcBill ? 'Credit Card Bill Reminder' : (isSelf ? 'Self-Transfer' : 'Debit / UPI Transaction'),
+        amount,
+        minDue: minMatch ? parseFloat(minMatch[1].replace(/,/g, '')) : null,
+        dueDate: dueMatch ? dueMatch[1] : null,
+        merchant,
+        category,
+        isSelfTransfer: isSelf
+      };
+      renderCurrentView();
+      showToast('Parsed on-device with zero external network calls');
+    }
+
+    function commitParsedPreview() {
+      if (!state.parsedPreview) return;
+      const p = state.parsedPreview;
+      state.transactions.unshift({
+        id: Date.now(),
+        merchant: p.merchant,
+        type: p.isSelfTransfer ? 'transfer' : 'expense',
+        amount: p.amount,
+        category: p.category,
+        wallet: 'GPay UPI',
+        date: 'Just now',
+        tags: ['#auto-parsed'],
+        splits: null,
+        isSelfTransfer: p.isSelfTransfer,
+        source: 'On-Device Parser'
+      });
+      state.parsedPreview = null;
+      renderCurrentView();
+      showToast('Added parsed entry to your encrypted vault');
+    }
+
+    function addDemoRule() {
+      state.rules.unshift({ pattern: 'chai|tapri|bakery', category: 'Food', tag: '#snacks', hits: 1 });
+      renderCurrentView();
+      showToast('Added custom local UPI rule: chai|tapri → Food');
+    }
+
+    /* ============================================================
+       ADD TRANSACTION MODAL + CALCULATOR + SPLIT
+       ============================================================ */
+    function openAddModal() {
+      document.getElementById('addModal').classList.remove('hidden');
+      renderModalCategories();
+      updateCalcUI();
+    }
+    function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); }
+
+    function setTxType(type) {
+      state.modalType = type;
+      ['expense','income','transfer'].forEach(t => {
+        document.getElementById('txType' + t[0].toUpperCase() + t.slice(1)).classList.toggle('active', t === type);
+      });
+    }
+
+    function evalSafeArithmetic(expr) {
+      const tokens = expr.match(/\d+(?:\.\d+)?|[+\-*/]/g);
+      if (!tokens || !tokens.length) return 0;
+      const values = [parseFloat(tokens[0]) || 0];
+      const ops = [];
+      for (let i = 1; i < tokens.length; i += 2) {
+        const op = tokens[i];
+        const nextVal = parseFloat(tokens[i + 1]);
+        if (isNaN(nextVal)) break;
+        if (op === '*' || op === '/') {
+          const prev = values.pop();
+          values.push(op === '*' ? prev * nextVal : (nextVal === 0 ? 0 : prev / nextVal));
+        } else {
+          ops.push(op);
+          values.push(nextVal);
+        }
+      }
+      let total = values[0];
+      for (let i = 0; i < ops.length; i++) {
+        total = ops[i] === '+' ? total + values[i + 1] : total - values[i + 1];
+      }
+      return Math.max(0, Math.round(total));
+    }
+
+    function calcPress(key) {
+      if (key === 'C') { state.calcBuffer = '0'; }
+      else if (key === '=') {
+        state.calcBuffer = String(evalSafeArithmetic(state.calcBuffer));
+      } else {
+        state.calcBuffer = state.calcBuffer === '0' ? key : state.calcBuffer + key;
+      }
+      updateCalcUI();
+    }
+
+    function updateCalcUI() {
+      document.getElementById('calcExpr').textContent = /[+\-*/]/.test(state.calcBuffer) ? state.calcBuffer : '';
+      const num = parseFloat(state.calcBuffer) || 0;
+      document.getElementById('calcVal').textContent = fmt(num);
+      updateSplitStatus();
+    }
+
+    function renderModalCategories() {
+      document.getElementById('modalCatGrid').innerHTML = CATEGORIES.slice(0, 8).map(c => `
+        <button class="cat-pick ${state.modalCategory===c.id?'active':''}" onclick="state.modalCategory='${c.id}';renderModalCategories()">
+          <span style="color:${c.color}">${ICONS[c.icon]}</span>
+          <span>${c.id}</span>
+        </button>`).join('');
+    }
+
+    function checkAutoRule() {
+      const val = document.getElementById('txMerchant').value.toLowerCase();
+      const chip = document.getElementById('autoRuleChip');
+      const hit = state.rules.find(r => new RegExp(r.pattern, 'i').test(val));
+      if (hit && val.length >= 3) {
+        state.modalCategory = hit.category;
+        renderModalCategories();
+        chip.textContent = `Auto-categorized by rule → ${hit.category} (${hit.tag})`;
+        chip.classList.remove('hidden');
+      } else {
+        chip.classList.add('hidden');
+      }
+    }
+
+    function toggleSplitMode() {
+      document.getElementById('splitPane').classList.toggle('hidden', !document.getElementById('splitToggle').checked);
+      updateSplitStatus();
+    }
+
+    function updateSplitStatus() {
+      const total = parseFloat(state.calcBuffer) || 0;
+      const s1 = parseFloat(document.getElementById('splitAmt1')?.value) || 0;
+      const s2 = parseFloat(document.getElementById('splitAmt2')?.value) || 0;
+      const diff = total - (s1 + s2);
+      const badge = document.getElementById('splitRemain');
+      if (!badge) return;
+      if (diff === 0) { badge.className = 'chip chip-green'; badge.textContent = 'Balanced ✓'; }
+      else { badge.className = 'chip chip-amber'; badge.textContent = `Diff: ${fmt(diff)}`; }
+    }
+
+    function appendTag(tag) {
+      const inp = document.getElementById('txTags');
+      if (!inp.value.includes(tag)) inp.value = inp.value ? `${inp.value}, ${tag}` : tag;
+    }
+
+    function saveModalTransaction() {
+      const amount = parseFloat(state.calcBuffer) || 0;
+      if (amount <= 0) { showToast('Enter an amount greater than 0'); return; }
+      const merchant = document.getElementById('txMerchant').value.trim() || state.modalCategory;
+      const wallet = document.getElementById('txWallet').value;
+      const tags = document.getElementById('txTags').value.split(',').map(s => s.trim()).filter(Boolean);
+      const isSplit = document.getElementById('splitToggle').checked;
+      const splits = isSplit ? [
+        { cat: document.getElementById('splitCat1').value, amt: parseFloat(document.getElementById('splitAmt1').value) || 0 },
+        { cat: document.getElementById('splitCat2').value, amt: parseFloat(document.getElementById('splitAmt2').value) || 0 }
+      ] : null;
+
+      state.transactions.unshift({
+        id: Date.now(),
+        merchant,
+        type: state.modalType,
+        amount,
+        category: state.modalType === 'transfer' ? 'Transfer' : state.modalCategory,
+        wallet,
+        date: 'Just now',
+        tags,
+        splits,
+        isSelfTransfer: state.modalType === 'transfer',
+        source: 'Manual'
+      });
+      closeAddModal();
+      renderCurrentView();
+      showToast(`Saved ${fmt(amount)} (${merchant})`);
+    }
+
+    /* ============================================================
+       BOOTSTRAP
+       ============================================================ */
+    function initStaticIcons() {
+      document.getElementById('loginLogo').innerHTML = ICONS.wallet;
+      document.getElementById('railLogo').innerHTML = ICONS.wallet;
+      document.getElementById('bioIcon').innerHTML = ICONS.fingerprint;
+      document.getElementById('hdrHideBtn').innerHTML = ICONS.eye;
+      document.getElementById('hdrLockBtn').innerHTML = ICONS.lock;
+      document.getElementById('fabIcon').innerHTML = ICONS.plus;
+      document.getElementById('railLockBtn').innerHTML = `${ICONS.lock}<span>Lock Vault</span>`;
+
+      Object.entries(NAV_META).forEach(([key, meta]) => {
+        const rail = document.querySelector(`.desktop-rail [data-nav="${key}"]`);
+        if (rail) rail.innerHTML = `${ICONS[meta.icon]}<span>${meta.label}</span>`;
+        const bnav = document.querySelector(`.bottom-nav [data-nav="${key}"]`);
+        if (bnav) bnav.innerHTML = `<span class="bnav-pill">${ICONS[meta.icon]}</span><span>${meta.label.split(' ')[0]}</span>`;
+      });
+    }
+
+    initStaticIcons();
+    renderCurrentView();
+  </script>
+</body>
+</html>
