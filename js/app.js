@@ -877,6 +877,19 @@ document.addEventListener('click', async e => {
       await refreshVaultData();
       renderApp();
       showToast('Preferences saved');
+    } else if (action === 'reset-zero-balances') {
+      for (const w of vaultData.wallets) {
+        await putRecord('wallets', { ...w, initialBalance: 0, currentBalance: 0, updatedAt: nowIso() });
+      }
+      await putRecord('settings', {
+        ...vaultData.settings,
+        monthlyIncomeEstimate: 0,
+        monthlySavingsTarget: 0,
+        updatedAt: nowIso()
+      });
+      await refreshVaultData();
+      renderApp();
+      showToast('All wallet opening balances & estimates reset to ₹0');
     } else if (action === 'save-quick-pin') {
       const pin = document.getElementById('settingQuickPin').value.trim();
       await setQuickPin(pin);

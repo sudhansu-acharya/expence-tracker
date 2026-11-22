@@ -105,9 +105,12 @@ export function renderDashboardView(ctx) {
         <div class="card hero-safe">
           <div class="hero-label">${iconSvg('shield')} SAFE-TO-SPEND DAILY ALLOWANCE</div>
           <div class="hero-amount">${escHtml(formatMoney(safe.dailyAllowance, settings))} <span style="font-size:13px;font-weight:600;opacity:0.9">/ today</span></div>
-          <div class="hero-sub">${safe.remainingDays} day${safe.remainingDays > 1 ? 's' : ''} left this month • Status: <strong>${escHtml(safe.status)}</strong></div>
-          <button class="hero-pill-btn" data-action="toggle-safe-formula">${state.showSafeFormula ? 'Hide formula' : 'See calculation breakdown'}</button>
-          ${state.showSafeFormula ? `
+          ${safe.status === 'Not Set'
+            ? `<div class="hero-sub">Set your Monthly Income in Settings (or add an Income entry) to calculate your daily allowance.</div>
+               <button class="hero-pill-btn" data-action="nav" data-nav="settings">Set Monthly Income</button>`
+            : `<div class="hero-sub">${safe.remainingDays} day${safe.remainingDays > 1 ? 's' : ''} left this month • Status: <strong>${escHtml(safe.status)}</strong></div>
+               <button class="hero-pill-btn" data-action="toggle-safe-formula">${state.showSafeFormula ? 'Hide formula' : 'See calculation breakdown'}</button>`}
+          ${state.showSafeFormula && safe.status !== 'Not Set' ? `
             <div class="formula-box">
               Income (${escHtml(formatMoney(safe.monthlyIncome, settings))}) − Fixed Bills/EMIs/CC (${escHtml(formatMoney(safe.upcomingFixed, settings))}) − Savings Goal (${escHtml(formatMoney(safe.savingsTarget, settings))}) − Spent (${escHtml(formatMoney(safe.monthSpend, settings))})
               = <strong>${escHtml(formatMoney(safe.remainingPool, settings))}</strong> ÷ ${safe.remainingDays} days

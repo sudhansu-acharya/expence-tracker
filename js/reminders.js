@@ -191,6 +191,6 @@ export function computeSafeToSpend({ transactions = [], recurring = [], ccBills 
     remainingPool,
     remainingDays,
     dailyAllowance,
-    status: remainingPool <= 0 ? 'Over Pace' : (dailyAllowance < 500 ? 'Tight' : 'On Track')
+    status: monthlyIncome <= 0 ? 'Not Set' : (remainingPool <= 0 ? 'Over Pace' : (dailyAllowance < 500 ? 'Tight' : 'On Track'))
   };
 }

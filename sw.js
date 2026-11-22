@@ -1,5 +1,5 @@
-// Offline-First Cache-First Service Worker (Zero Runtime CDN Dependencies)
-const CACHE_NAME = 'cashewflow-v1.0.1';
+// Offline-First Service Worker (Network-First with Full Precache Offline Fallback)
+const CACHE_NAME = 'cashewflow-v1.0.2';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -51,15 +51,14 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(req, { ignoreSearch: true }).then(cached => {
-      if (cached) return cached;
-      return fetch(req).then(res => {
-        if (res && res.status === 200 && res.type === 'basic') {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then(c => c.put(req, clone));
-        }
-        return res;
-      }).catch(() => caches.match('./index.html'));
-    })
+    fetch(req).then(res => {
+      if (res && res.status === 200 && res.type === 'basic') {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then(c => c.put(req, clone));
+      }
+      return res;
+    }).catch(() =>
+      caches.match(req, { ignoreSearch: true }).then(cached => cached || caches.match('./index.html'))
+    )
   );
 });

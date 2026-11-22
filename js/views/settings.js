@@ -46,14 +46,17 @@ export function renderSettingsView(ctx) {
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               <div>
                 <label class="field-label">Monthly Income Est.</label>
-                <input class="input" type="number" id="settingIncomeEst" value="${escHtml(s.monthlyIncomeEstimate ?? 85000)}" />
+                <input class="input" type="number" id="settingIncomeEst" value="${escHtml(s.monthlyIncomeEstimate ?? 0)}" />
               </div>
               <div>
                 <label class="field-label">Monthly Savings Target</label>
-                <input class="input" type="number" id="settingSavingsTarget" value="${escHtml(s.monthlySavingsTarget ?? 15000)}" />
+                <input class="input" type="number" id="settingSavingsTarget" value="${escHtml(s.monthlySavingsTarget ?? 0)}" />
               </div>
             </div>
-            <button class="btn-primary" data-action="save-display-settings">Save Preferences</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn-primary" style="flex:1" data-action="save-display-settings">Save Preferences</button>
+              <button class="btn-soft" data-action="reset-zero-balances">Reset Balances to ₹0</button>
+            </div>
           </div>
         </div>
 

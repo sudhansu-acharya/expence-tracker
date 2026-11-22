@@ -168,10 +168,10 @@ export async function seedInitialVaultData() {
   }
 
   const defaultWallets = [
-    { name: 'Primary Bank', type: 'bank', currency: 'INR', initialBalance: 50000, currentBalance: 50000, last4Digits: '9042', institution: 'HDFC Bank', color: '#0d9488', icon: 'bank', isArchived: false },
-    { name: 'GPay UPI', type: 'upi', currency: 'INR', initialBalance: 15000, currentBalance: 15000, last4Digits: 'UPI', institution: 'Google Pay', color: '#3b82f6', icon: 'wallet', isArchived: false },
-    { name: 'Cash Wallet', type: 'cash', currency: 'INR', initialBalance: 5000, currentBalance: 5000, last4Digits: 'CASH', institution: 'Cash', color: '#10b981', icon: 'wallet', isArchived: false },
-    { name: 'HDFC Credit Card', type: 'credit_card', currency: 'INR', initialBalance: 0, currentBalance: 0, creditLimit: 150000, billingDay: 15, dueDay: 5, last4Digits: '4821', institution: 'HDFC', color: '#f43f5e', icon: 'card', isArchived: false }
+    { name: 'Bank Account', type: 'bank', currency: 'INR', initialBalance: 0, currentBalance: 0, last4Digits: '', institution: '', color: '#0d9488', icon: 'bank', isArchived: false },
+    { name: 'UPI', type: 'upi', currency: 'INR', initialBalance: 0, currentBalance: 0, last4Digits: '', institution: '', color: '#3b82f6', icon: 'wallet', isArchived: false },
+    { name: 'Cash', type: 'cash', currency: 'INR', initialBalance: 0, currentBalance: 0, last4Digits: '', institution: '', color: '#10b981', icon: 'wallet', isArchived: false },
+    { name: 'Credit Card', type: 'credit_card', currency: 'INR', initialBalance: 0, currentBalance: 0, creditLimit: 0, billingDay: 1, dueDay: 20, last4Digits: '', institution: '', color: '#f43f5e', icon: 'card', isArchived: false }
   ];
   for (const w of defaultWallets) {
     await putRecord('wallets', w);
@@ -198,8 +198,8 @@ export async function seedInitialVaultData() {
     themeMode: 'system',
     accentColor: 'emerald',
     hideAmounts: false,
-    monthlyIncomeEstimate: 85000,
-    monthlySavingsTarget: 15000,
+    monthlyIncomeEstimate: 0,
+    monthlySavingsTarget: 0,
     autoLockMinutes: 15,
     syncProvider: 'none',
     gdriveClientId: '',
