@@ -119,12 +119,29 @@ jobs:
 
           npx cap sync android
 
-      - name: Build Debug APK
+      - name: Build Signed Release APK
         working-directory: android-bridge/android
-        run: ./gradlew assembleDebug
+        run: |
+          keytool -genkeypair -v \
+            -keystore cashewflow-release.jks \
+            -storepass cashewflow2026 \
+            -keypass cashewflow2026 \
+            -alias cashewflow \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=CashewFlow, OU=Personal, O=CashewFlow, L=IN, S=IN, C=IN"
 
-      - name: Upload CashewFlow Android APK Artifact
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$(pwd)/cashewflow-release.jks" \
+            -Pandroid.injected.signing.store.password=cashewflow2026 \
+            -Pandroid.injected.signing.key.alias=cashewflow \
+            -Pandroid.injected.signing.key.password=cashewflow2026
+
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/CashewFlow-release.apk
+
+      - name: Upload CashewFlow Signed Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: CashewFlow-Android-APK
-          path: android-bridge/android/app/build/outputs/apk/debug/app-debug.apk
+          path: android-bridge/android/app/build/outputs/apk/release/CashewFlow-release.apk
