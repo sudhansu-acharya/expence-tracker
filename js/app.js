@@ -1368,7 +1368,7 @@ window.CashewBridge = {
 
 // PWA Service Worker, Install Prompt & Android Web Share Target
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 
 window.addEventListener('beforeinstallprompt', e => {

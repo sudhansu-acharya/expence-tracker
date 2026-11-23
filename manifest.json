@@ -1,8 +1,9 @@
 {
+  "id": "./",
   "name": "CashewFlow — Offline Expense & Budget Tracker",
   "short_name": "CashewFlow",
   "description": "100% Free, Offline-First, AES-256-GCM Encrypted Expense, Budget & Credit Card Bill Tracker for Android, Windows & macOS.",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
