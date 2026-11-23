@@ -1,5 +1,5 @@
 // Offline-First Service Worker (Network-First with Full Precache Offline Fallback)
-const CACHE_NAME = 'cashewflow-v1.0.10';
+const CACHE_NAME = 'cashewflow-v1.0.11';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -62,5 +62,17 @@ self.addEventListener('fetch', event => {
     }).catch(() =>
       caches.match(req, { ignoreSearch: true }).then(cached => cached || caches.match('./index.html'))
     )
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      if (clients.length > 0) {
+        return clients[0].focus();
+      }
+      return self.clients.openWindow('./index.html');
+    })
   );
 });

@@ -3,14 +3,29 @@ import { getPeriodBounds, getPeriodKey, formatMoney } from './format.js';
 import { expandCategoryAllocations } from './rules.js';
 import { putRecord } from './db.js';
 
-export function sendLocalNotification(title, body) {
+export async function sendLocalNotification(title, body) {
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg && typeof reg.showNotification === 'function') {
+          await reg.showNotification(title, {
+            body,
+            icon: './assets/icons/icon-192.png',
+            badge: './assets/icons/icon-192.png',
+            tag: 'cashewflow-reminder',
+            renotify: true
+          });
+          return true;
+        }
+      }
       new Notification(title, { body, icon: './assets/icons/icon-192.png' });
+      return true;
     } catch {
-      // Ignore if browser restricts Notification constructor without SW
+      return false;
     }
   }
+  return false;
 }
 
 export async function requestNotificationPermission() {
@@ -193,4 +208,114 @@ export function computeSafeToSpend({ transactions = [], recurring = [], ccBills 
     dailyAllowance,
     status: monthlyIncome <= 0 ? 'Not Set' : (remainingPool <= 0 ? 'Over Pace' : (dailyAllowance < 500 ? 'Tight' : 'On Track'))
   };
+}
+
+// ============================================================
+// SCHEDULED EXPENSE UPDATE REMINDER (Daily / Weekly / Yearly)
+// ============================================================
+function hasLoggedToday(transactions = [], now = new Date()) {
+  const todayStr = now.toDateString();
+  return transactions.some(tx => !tx.deletedAt && new Date(tx.date).toDateString() === todayStr);
+}
+
+export function getExpenseReminderDueInfo(settings = {}, transactions = [], now = new Date()) {
+  if (!settings.reminderEnabled) return { due: false };
+  const freq = settings.reminderFrequency || 'daily'; // daily | weekly | yearly
+  const timeStr = settings.reminderTime || '21:00';
+  const [hh, mm] = timeStr.split(':').map(n => parseInt(n, 10) || 0);
+
+  const scheduledToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+  if (now < scheduledToday) return { due: false };
+
+  if (freq === 'weekly') {
+    const targetDow = Number(settings.reminderDayOfWeek ?? 0); // 0=Sun..6=Sat
+    if (now.getDay() !== targetDow) return { due: false };
+  } else if (freq === 'yearly') {
+    const targetMonth = Number(settings.reminderMonth ?? 1); // 1..12
+    const targetDay = Number(settings.reminderDay ?? 1);
+    if ((now.getMonth() + 1) !== targetMonth || now.getDate() !== targetDay) return { due: false };
+  }
+
+  if (settings.reminderSkipIfLoggedToday && hasLoggedToday(transactions, now)) {
+    return { due: false, skippedLoggedToday: true };
+  }
+
+  const occurrenceKey = `${freq}:${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const message = (settings.reminderMessage || "Please update today's expenses!").trim();
+
+  return {
+    due: true,
+    occurrenceKey,
+    alreadySent: settings.lastReminderSentKey === occurrenceKey,
+    dismissed: settings.lastReminderDismissedKey === occurrenceKey,
+    message,
+    timeStr,
+    freq
+  };
+}
+
+export async function checkAndFireExpenseReminder(settings, transactions, notifyToast) {
+  const info = getExpenseReminderDueInfo(settings, transactions);
+  if (!info.due || info.alreadySent) return false;
+
+  await sendLocalNotification('CashewFlow Reminder', info.message);
+  if (notifyToast) notifyToast(`🔔 ${info.message}`);
+  await putRecord('settings', {
+    ...settings,
+    lastReminderSentKey: info.occurrenceKey,
+    updatedAt: new Date().toISOString()
+  });
+  return true;
+}
+
+// Generate an RFC-5545 .ics recurring calendar alarm for reliable OS-level reminders even when browser is closed
+export function buildReminderIcs(settings = {}) {
+  const freq = (settings.reminderFrequency || 'daily').toUpperCase();
+  const timeStr = settings.reminderTime || '21:00';
+  const [hh, mm] = timeStr.split(':').map(n => parseInt(n, 10) || 0);
+  const message = (settings.reminderMessage || "Please update today's expenses!").replace(/\r?\n/g, ' ');
+
+  const now = new Date();
+  let start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0);
+  if (freq === 'WEEKLY') {
+    const targetDow = Number(settings.reminderDayOfWeek ?? 0);
+    const diff = (targetDow - start.getDay() + 7) % 7;
+    start.setDate(start.getDate() + diff);
+  } else if (freq === 'YEARLY') {
+    const targetMonth = Number(settings.reminderMonth ?? 1) - 1;
+    const targetDay = Number(settings.reminderDay ?? 1);
+    start = new Date(now.getFullYear(), targetMonth, targetDay, hh, mm, 0);
+    if (start < now) start.setFullYear(start.getFullYear() + 1);
+  }
+
+  const pad = n => String(n).padStart(2, '0');
+  const dtLocal = `${start.getFullYear()}${pad(start.getMonth() + 1)}${pad(start.getDate())}T${pad(hh)}${pad(mm)}00`;
+  const endDate = new Date(start.getTime() + 15 * 60000);
+  const dtEnd = `${endDate.getFullYear()}${pad(endDate.getMonth() + 1)}${pad(endDate.getDate())}T${pad(endDate.getHours())}${pad(endDate.getMinutes())}00`;
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+
+  const dayCodes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+  let rrule = `FREQ=${freq}`;
+  if (freq === 'WEEKLY') rrule += `;BYDAY=${dayCodes[Number(settings.reminderDayOfWeek ?? 0)]}`;
+
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//CashewFlow//Expense Reminder//EN',
+    'BEGIN:VEVENT',
+    `UID:cashewflow-expense-reminder@offline`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${dtLocal}`,
+    `DTEND:${dtEnd}`,
+    `RRULE:${rrule}`,
+    `SUMMARY:CashewFlow: ${message}`,
+    `DESCRIPTION:${message} Open CashewFlow to log your expenses.`,
+    'BEGIN:VALARM',
+    'TRIGGER:PT0M',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:${message}`,
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
 }

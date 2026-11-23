@@ -2,7 +2,7 @@
 import { iconSvg } from '../icons.js';
 import { formatMoney, escHtml, getPeriodBounds, formatShortDate } from '../format.js';
 import { computeWalletBalances, expandCategoryAllocations, getPurchaseSuggestions } from '../rules.js';
-import { computeSafeToSpend, getActiveCreditCardReminders } from '../reminders.js';
+import { computeSafeToSpend, getActiveCreditCardReminders, getExpenseReminderDueInfo } from '../reminders.js';
 import { drawTrendChart, drawComparisonBarChart, renderCategoryDonutHtml } from '../charts.js';
 
 export function renderDashboardView(ctx) {
@@ -93,6 +93,22 @@ export function renderDashboardView(ctx) {
     settings
   });
 
+  const expRem = getExpenseReminderDueInfo(settings, data.transactions);
+  const expRemBannerHtml = (expRem.due && !expRem.dismissed) ? `
+    <div class="alert-banner" id="expenseReminderBanner">
+      <div class="alert-left">
+        <div class="alert-icon">${iconSvg('bell')}</div>
+        <div>
+          <div style="font-size:13.5px;font-weight:800">${escHtml(expRem.message)}</div>
+          <div class="muted" style="color:var(--text-2);margin-top:2px">Scheduled ${escHtml(expRem.freq)} reminder (${escHtml(expRem.timeStr)})</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn-primary" style="min-height:34px;padding:6px 12px;font-size:12px" data-action="open-tx-modal">+ Log Now</button>
+        <button class="btn-soft" style="min-height:34px;padding:6px 10px;font-size:12px" data-action="dismiss-expense-reminder" data-key="${escHtml(expRem.occurrenceKey)}">Dismiss</button>
+      </div>
+    </div>` : '';
+
   const ccReminders = getActiveCreditCardReminders(data.credit_card_bills);
   const ccBannerHtml = ccReminders.slice(0, 2).map(r => `
     <div class="alert-banner ${r.daysLeft <= 0 ? 'danger' : ''}">
@@ -136,6 +152,7 @@ export function renderDashboardView(ctx) {
 
   return `
     <div class="stack">
+      ${expRemBannerHtml}
       ${ccBannerHtml}
 
       <div class="grid-2">

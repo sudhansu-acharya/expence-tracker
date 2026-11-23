@@ -112,6 +112,72 @@ export function renderSettingsView(ctx) {
         </div>
       </div>
 
+      <!-- Expense Update Reminder (Daily / Weekly / Yearly) -->
+      <div class="card" id="expenseReminderCard">
+        <div class="card-header">
+          <div class="card-title">${iconSvg('bell')} Expense Update Reminder</div>
+          <span class="chip ${s.reminderEnabled ? 'chip-green' : ''}">${s.reminderEnabled ? `Active • ${escHtml((s.reminderFrequency || 'daily').toUpperCase())} ${escHtml(s.reminderTime || '21:00')}` : 'Off'}</span>
+        </div>
+        <p class="muted" style="margin-bottom:10px">Get notified at your chosen time every day, week, or year to update your expenses.</p>
+        <div class="stack" style="gap:10px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;cursor:pointer">
+            <input type="checkbox" id="settingRemEnabled" ${s.reminderEnabled ? 'checked' : ''} />
+            Enable scheduled reminder notification
+          </label>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <label class="field-label">Frequency</label>
+              <select class="input" id="settingRemFreq">
+                <option value="daily" ${(s.reminderFrequency || 'daily') === 'daily' ? 'selected' : ''}>Every Day (Daily)</option>
+                <option value="weekly" ${s.reminderFrequency === 'weekly' ? 'selected' : ''}>Every Week (Weekly)</option>
+                <option value="yearly" ${s.reminderFrequency === 'yearly' ? 'selected' : ''}>Every Year (Yearly)</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Reminder Time</label>
+              <input class="input" type="time" id="settingRemTime" value="${escHtml(s.reminderTime || '21:00')}" />
+            </div>
+          </div>
+
+          <div id="remWeeklyWrap" class="${s.reminderFrequency === 'weekly' ? '' : 'hidden'}">
+            <label class="field-label">Day of Week</label>
+            <select class="input" id="settingRemDow">
+              ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => `<option value="${i}" ${Number(s.reminderDayOfWeek ?? 0) === i ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+          </div>
+
+          <div id="remYearlyWrap" class="${s.reminderFrequency === 'yearly' ? '' : 'hidden'}" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <label class="field-label">Month</label>
+              <select class="input" id="settingRemMonth">
+                ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => `<option value="${i + 1}" ${Number(s.reminderMonth ?? 1) === (i + 1) ? 'selected' : ''}>${m}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Day of Month</label>
+              <input class="input" type="number" id="settingRemDay" min="1" max="31" value="${escHtml(s.reminderDay ?? 1)}" />
+            </div>
+          </div>
+
+          <div>
+            <label class="field-label">Reminder Message</label>
+            <input class="input" id="settingRemMsg" value="${escHtml(s.reminderMessage || "Please update today's expenses!")}" placeholder="Please update today's expenses!" />
+          </div>
+
+          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2);cursor:pointer">
+            <input type="checkbox" id="settingRemSkipLogged" ${s.reminderSkipIfLoggedToday ? 'checked' : ''} />
+            Skip reminder if I already logged a transaction today
+          </label>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn-primary" data-action="save-expense-reminder">${iconSvg('bell')} Save Reminder</button>
+            <button class="btn-soft" data-action="test-expense-reminder">Test Notification</button>
+            <button class="btn-soft" data-action="download-reminder-ics">${iconSvg('download')} Add to Phone/PC Calendar (.ics)</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Offline Encrypted Backup / Smart-Merge Restore & CSV Export -->
       <div class="card">
         <div class="card-header">

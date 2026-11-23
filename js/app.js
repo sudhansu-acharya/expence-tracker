@@ -16,7 +16,8 @@ import {
   parseMessageOnDevice, AccountAggregatorAdapter, SAMPLE_SMS_LIBRARY
 } from './parser.js';
 import {
-  evaluateBudgetAlerts, detectRecurringCandidates, requestNotificationPermission
+  evaluateBudgetAlerts, detectRecurringCandidates, requestNotificationPermission,
+  checkAndFireExpenseReminder, sendLocalNotification, buildReminderIcs
 } from './reminders.js';
 import {
   exportEncryptedSnapshot, importEncryptedSnapshot, triggerFileDownload,
@@ -1163,6 +1164,61 @@ document.addEventListener('click', async e => {
     } else if (action === 'request-notif-perm') {
       const res = await requestNotificationPermission();
       showToast(`Notification permission: ${res}`);
+    } else if (action === 'save-expense-reminder') {
+      const enabled = Boolean(document.getElementById('settingRemEnabled')?.checked);
+      const freq = document.getElementById('settingRemFreq')?.value || 'daily';
+      const time = document.getElementById('settingRemTime')?.value || '21:00';
+      const dow = Number(document.getElementById('settingRemDow')?.value ?? 0);
+      const month = Number(document.getElementById('settingRemMonth')?.value ?? 1);
+      const day = Math.max(1, Math.min(31, Number(document.getElementById('settingRemDay')?.value ?? 1)));
+      const msg = (document.getElementById('settingRemMsg')?.value || "Please update today's expenses!").trim();
+      const skip = Boolean(document.getElementById('settingRemSkipLogged')?.checked);
+
+      if (enabled) {
+        await requestNotificationPermission();
+      }
+      await putRecord('settings', {
+        ...vaultData.settings,
+        reminderEnabled: enabled,
+        reminderFrequency: freq,
+        reminderTime: time,
+        reminderDayOfWeek: dow,
+        reminderMonth: month,
+        reminderDay: day,
+        reminderMessage: msg,
+        reminderSkipIfLoggedToday: skip,
+        lastReminderSentKey: null,
+        lastReminderDismissedKey: null,
+        updatedAt: nowIso()
+      });
+      await refreshVaultData();
+      const fired = await checkAndFireExpenseReminder(vaultData.settings, vaultData.transactions, showToast);
+      if (fired) await refreshVaultData();
+      renderApp();
+      showToast(enabled ? `Reminder saved (${freq} at ${time})` : 'Expense reminder turned off');
+    } else if (action === 'test-expense-reminder') {
+      const msg = (document.getElementById('settingRemMsg')?.value || vaultData.settings.reminderMessage || "Please update today's expenses!").trim();
+      await requestNotificationPermission();
+      const sent = await sendLocalNotification('CashewFlow Reminder', msg);
+      showToast(sent ? `🔔 Notification sent: ${msg}` : `🔔 ${msg} (enable browser notifications for OS popup)`);
+    } else if (action === 'download-reminder-ics') {
+      const ics = buildReminderIcs({
+        reminderFrequency: document.getElementById('settingRemFreq')?.value || vaultData.settings.reminderFrequency || 'daily',
+        reminderTime: document.getElementById('settingRemTime')?.value || vaultData.settings.reminderTime || '21:00',
+        reminderDayOfWeek: Number(document.getElementById('settingRemDow')?.value ?? vaultData.settings.reminderDayOfWeek ?? 0),
+        reminderMonth: Number(document.getElementById('settingRemMonth')?.value ?? vaultData.settings.reminderMonth ?? 1),
+        reminderDay: Number(document.getElementById('settingRemDay')?.value ?? vaultData.settings.reminderDay ?? 1),
+        reminderMessage: document.getElementById('settingRemMsg')?.value || vaultData.settings.reminderMessage || "Please update today's expenses!"
+      });
+      triggerFileDownload(ics, 'cashewflow-expense-reminder.ics', 'text/calendar;charset=utf-8');
+      showToast('Calendar reminder (.ics) downloaded — open it to add to your phone/PC calendar');
+    } else if (action === 'dismiss-expense-reminder') {
+      const key = btn.dataset.key;
+      if (key) {
+        await putRecord('settings', { ...vaultData.settings, lastReminderDismissedKey: key, updatedAt: nowIso() });
+        await refreshVaultData();
+        renderApp();
+      }
     } else if (action === 'export-enc-backup') {
       const pass = document.getElementById('backupPassphrase').value;
       const env = await exportEncryptedSnapshot(pass);
@@ -1366,6 +1422,9 @@ document.addEventListener('change', async e => {
       await refreshVaultData();
       renderApp();
       showToast(`Liquid Glass level saved (${lvl}%)`);
+    } else if (t.id === 'settingRemFreq') {
+      document.getElementById('remWeeklyWrap')?.classList.toggle('hidden', t.value !== 'weekly');
+      document.getElementById('remYearlyWrap')?.classList.toggle('hidden', t.value !== 'yearly');
     } else if (t.id === 'txWalletSelect') { appState.txWalletFilter = t.value; renderApp(); }
     else if (t.id === 'customStartInput') { appState.customStart = t.value; renderApp(); }
     else if (t.id === 'customEndInput') { appState.customEnd = t.value; renderApp(); }
@@ -1467,6 +1526,24 @@ if (sharedText) {
   appState.autoSaveShared = urlParams.get('auto_save') === '1';
   appState.screen = 'capture';
 }
+
+// Periodic scheduled expense reminder checker (every 30s + on tab visibility)
+async function pollExpenseReminder() {
+  if (!hasSessionKey() || !vaultData) return;
+  try {
+    const fired = await checkAndFireExpenseReminder(vaultData.settings, vaultData.transactions, showToast);
+    if (fired) {
+      await refreshVaultData();
+      if (appState.screen === 'dashboard') renderApp();
+    }
+  } catch {
+    // Ignore transient errors while locked
+  }
+}
+setInterval(pollExpenseReminder, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') pollExpenseReminder();
+});
 
 registerAutoLockHandler(reason => {
   vaultData = null;
