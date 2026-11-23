@@ -11,7 +11,7 @@ import {
 import {
   getAuthMeta, loadAllVaultData, putRecord, softDeleteRecord, hasSessionKey
 } from './db.js';
-import { matchCategorizationRule, detectSelfTransfer } from './rules.js';
+import { matchCategorizationRule, detectSelfTransfer, getPurchaseSuggestions, GROCERY_QUICK_ITEMS } from './rules.js';
 import {
   parseMessageOnDevice, AccountAggregatorAdapter, SAMPLE_SMS_LIBRARY
 } from './parser.js';
@@ -273,31 +273,72 @@ function closeModal() {
   backdrop.innerHTML = '';
 }
 
-function openTransactionModal(existingTx = null) {
+function openTransactionModal(existingTx = null, preset = null) {
   const defaultWallet = vaultData.wallets[0]?.id || '';
   const defaultCat = vaultData.categories.find(c => c.type === 'expense')?.id || vaultData.categories[0]?.id || '';
   appState.modalState = {
     kind: 'tx',
     id: existingTx?.id || null,
-    type: existingTx?.type || 'expense',
-    calcBuffer: existingTx ? String(existingTx.amount) : '0',
-    walletId: existingTx?.walletId || defaultWallet,
+    type: existingTx?.type || preset?.type || 'expense',
+    calcBuffer: existingTx ? String(existingTx.amount) : (preset?.amount ? String(preset.amount) : '0'),
+    walletId: existingTx?.walletId || preset?.walletId || defaultWallet,
     toWalletId: existingTx?.toWalletId || (vaultData.wallets[1]?.id || defaultWallet),
-    categoryId: existingTx?.categoryId || defaultCat,
-    merchant: existingTx?.merchant || '',
-    note: existingTx?.note || '',
+    categoryId: existingTx?.categoryId || preset?.categoryId || defaultCat,
+    merchant: existingTx?.merchant || preset?.merchant || '',
+    note: existingTx?.note || preset?.note || '',
     date: existingTx ? toDateInputValue(existingTx.date) : toDateInputValue(new Date()),
-    tags: (existingTx?.tags || []).join(', '),
+    tags: existingTx ? (existingTx.tags || []).join(', ') : (preset?.tags || ''),
     isSplit: Boolean(existingTx?.splits?.length),
     splits: existingTx?.splits?.length
       ? existingTx.splits.map(s => ({ ...s }))
       : [
-          { categoryId: defaultCat, amount: 0 },
+          { categoryId: preset?.categoryId || defaultCat, amount: 0 },
           { categoryId: vaultData.categories[1]?.id || defaultCat, amount: 0 }
         ],
-    autoRuleText: ''
+    autoRuleText: preset?.autoRuleText || ''
   };
   renderTransactionModal();
+}
+
+function buildModalSuggestionsHtml(m) {
+  if (m.type === 'transfer') return '';
+  const catMap = new Map(vaultData.categories.map(c => [c.id, c]));
+  const activeCat = catMap.get(m.categoryId);
+  const isGroceryCat = activeCat && /grocer/i.test(activeCat.name);
+
+  const pastMatches = getPurchaseSuggestions(vaultData.transactions, {
+    type: m.type,
+    query: m.merchant,
+    categoryId: m.categoryId,
+    limit: 6
+  });
+
+  const pastHtml = pastMatches.length ? `
+    <div style="margin-top:8px">
+      <div class="muted" style="font-weight:700;margin-bottom:5px">From your past purchases (tap to auto-fill)</div>
+      <div class="quick-strip">
+        ${pastMatches.map(s => {
+          const cat = catMap.get(s.categoryId);
+          return `
+            <button type="button" class="suggest-chip" data-action="apply-suggestion" data-merchant="${escHtml(s.merchant)}" data-amount="${escHtml(s.lastAmount)}" data-cat="${escHtml(s.categoryId)}" data-wallet="${escHtml(s.walletId)}" data-tags="${escHtml(s.tags.join(', '))}">
+              <span style="color:${escHtml(cat?.color || 'var(--accent)')}">${iconSvg(cat?.icon || 'cart')}</span>
+              <span><strong>${escHtml(s.merchant)}</strong> • ${escHtml(formatMoney(s.lastAmount, { ...vaultData.settings, hideAmounts: false }))} <span class="muted">(${s.count}×)</span></span>
+            </button>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  const groceryChipsHtml = isGroceryCat ? `
+    <div style="margin-top:8px">
+      <div class="muted" style="font-weight:700;margin-bottom:5px">Quick Grocery Items</div>
+      <div class="quick-strip">
+        ${GROCERY_QUICK_ITEMS.map(item => `
+          <button type="button" class="pill-btn" data-action="apply-grocery-item" data-item="${escHtml(item.label)}" data-tags="${escHtml(item.tags.join(', '))}">${escHtml(item.label)}</button>
+        `).join('')}
+      </div>
+    </div>` : '';
+
+  return pastHtml + groceryChipsHtml;
 }
 
 function renderTransactionModal() {
@@ -347,6 +388,8 @@ function renderTransactionModal() {
       </div>
 
       ${m.autoRuleText ? `<div class="chip chip-accent" style="margin-top:8px">${escHtml(m.autoRuleText)}</div>` : ''}
+
+      <div id="modalSuggestionsWrap">${buildModalSuggestionsHtml(m)}</div>
 
       <div style="display:grid;grid-template-columns:${m.type === 'transfer' ? '1fr 1fr' : '1fr'};gap:8px;margin-top:8px">
         <div>
@@ -716,6 +759,40 @@ document.addEventListener('click', async e => {
       renderApp();
     } else if (action === 'open-tx-modal') {
       openTransactionModal(null);
+    } else if (action === 'quick-add-grocery') {
+      const grocCat = vaultData.categories.find(c => /grocer/i.test(c.name)) || vaultData.categories.find(c => c.type === 'expense');
+      const item = btn.dataset.item || '';
+      openTransactionModal(null, {
+        type: 'expense',
+        categoryId: grocCat?.id || '',
+        merchant: item,
+        tags: '#grocery',
+        autoRuleText: item ? `Quick Grocery → ${item}` : 'Grocery Quick Mode • Past purchases shown below'
+      });
+    } else if (action === 'quick-add-preset') {
+      openTransactionModal(null, {
+        type: 'expense',
+        merchant: btn.dataset.merchant || '',
+        amount: Number(btn.dataset.amount) || 0,
+        categoryId: btn.dataset.cat || '',
+        walletId: btn.dataset.wallet || '',
+        tags: btn.dataset.tags || '',
+        autoRuleText: 'Pre-filled from your past purchase'
+      });
+    } else if (action === 'apply-suggestion' && appState.modalState) {
+      const m = appState.modalState;
+      m.merchant = btn.dataset.merchant || m.merchant;
+      if (btn.dataset.amount && Number(btn.dataset.amount) > 0) m.calcBuffer = String(btn.dataset.amount);
+      if (btn.dataset.cat) m.categoryId = btn.dataset.cat;
+      if (btn.dataset.wallet) m.walletId = btn.dataset.wallet;
+      if (btn.dataset.tags) m.tags = btn.dataset.tags;
+      m.autoRuleText = `Applied past purchase: ${m.merchant}`;
+      renderTransactionModal();
+    } else if (action === 'apply-grocery-item' && appState.modalState) {
+      const m = appState.modalState;
+      m.merchant = btn.dataset.item || m.merchant;
+      if (btn.dataset.tags && !m.tags) m.tags = btn.dataset.tags;
+      renderTransactionModal();
     } else if (action === 'edit-tx') {
       const tx = vaultData.transactions.find(t => t.id === btn.dataset.id);
       if (tx) openTransactionModal(tx);
@@ -1182,13 +1259,16 @@ document.addEventListener('input', e => {
     if (t.id === 'modalMerchant') {
       m.merchant = t.value;
       const hit = matchCategorizationRule(t.value, vaultData.categorization_rules);
-      if (hit && t.value.trim().length >= 3) {
+      if (hit && t.value.trim().length >= 3 && m.categoryId !== hit.categoryId) {
         m.categoryId = hit.categoryId;
         const catName = vaultData.categories.find(c => c.id === hit.categoryId)?.name || 'Matched';
         m.autoRuleText = `Auto-categorized → ${catName}`;
         renderTransactionModal();
         const el = document.getElementById('modalMerchant');
         if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      } else {
+        const wrap = document.getElementById('modalSuggestionsWrap');
+        if (wrap) wrap.innerHTML = buildModalSuggestionsHtml(m);
       }
     } else if (t.id === 'modalTags') m.tags = t.value;
     else if (t.id === 'modalNote') m.note = t.value;

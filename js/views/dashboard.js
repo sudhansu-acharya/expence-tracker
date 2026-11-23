@@ -1,7 +1,7 @@
 // Phase 2: Daily, Weekly, Monthly & Custom Graphical Dashboards + Safe-to-Spend & Net Worth Snapshot
 import { iconSvg } from '../icons.js';
 import { formatMoney, escHtml, getPeriodBounds, formatShortDate } from '../format.js';
-import { computeWalletBalances, expandCategoryAllocations } from '../rules.js';
+import { computeWalletBalances, expandCategoryAllocations, getPurchaseSuggestions } from '../rules.js';
 import { computeSafeToSpend, getActiveCreditCardReminders } from '../reminders.js';
 import { drawTrendChart, drawComparisonBarChart, renderCategoryDonutHtml } from '../charts.js';
 
@@ -91,6 +91,17 @@ export function renderDashboardView(ctx) {
     .join('');
 
   const walletMap = new Map(data.wallets.map(w => [w.id, w]));
+  const pastSuggestions = getPurchaseSuggestions(data.transactions, { type: 'expense', limit: 6 });
+  const quickSuggestionsHtml = pastSuggestions.map(s => {
+    const cat = catMap.get(s.categoryId);
+    const when = s.daysAgo === 0 ? 'today' : (s.daysAgo === 1 ? '1d ago' : `${s.daysAgo}d ago`);
+    return `
+      <button class="suggest-chip" data-action="quick-add-preset" data-merchant="${escHtml(s.merchant)}" data-amount="${escHtml(s.lastAmount)}" data-cat="${escHtml(s.categoryId)}" data-wallet="${escHtml(s.walletId)}" data-tags="${escHtml(s.tags.join(', '))}">
+        <span style="color:${escHtml(cat?.color || 'var(--accent)')}">${iconSvg(cat?.icon || 'cart')}</span>
+        <span><strong>${escHtml(s.merchant)}</strong> • ${escHtml(formatMoney(s.lastAmount, settings))} <span class="muted">(${s.count > 1 ? `${s.count}×` : when})</span></span>
+      </button>`;
+  }).join('');
+
   const recentHtml = [...data.transactions]
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, 5)
@@ -137,6 +148,22 @@ export function renderDashboardView(ctx) {
               <div class="nw-box-val" style="color:${periodInflow - periodOutflow >= 0 ? 'var(--green)' : 'var(--red)'}">${escHtml(formatMoney(periodInflow - periodOutflow, settings, { showSign: true }))}</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Quick Add: 1-Tap Groceries & Past Purchase Suggestions -->
+      <div class="card" style="padding:13px 15px">
+        <div class="card-header" style="margin-bottom:8px">
+          <div class="card-title">${iconSvg('cart')} Quick Add • Groceries &amp; Past Purchases</div>
+          <button class="btn-soft" style="min-height:32px;padding:4px 12px;font-size:12px" data-action="quick-add-grocery">+ Grocery</button>
+        </div>
+        <div class="quick-strip">
+          ${quickSuggestionsHtml || `
+            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Milk & Dairy">${iconSvg('cart')} <span><strong>Milk &amp; Dairy</strong></span></button>
+            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Vegetables">${iconSvg('cart')} <span><strong>Vegetables</strong></span></button>
+            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Fruits">${iconSvg('cart')} <span><strong>Fruits</strong></span></button>
+            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Kirana Store">${iconSvg('cart')} <span><strong>Kirana Store</strong></span></button>
+          `}
         </div>
       </div>
 

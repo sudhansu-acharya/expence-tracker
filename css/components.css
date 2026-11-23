@@ -540,6 +540,37 @@
 }
 .accent-dot.active { border-color: var(--text-1); transform: scale(1.14); }
 
+/* Quick-Add & Past Purchase Suggestion Chips */
+.quick-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.quick-strip::-webkit-scrollbar { display: none; }
+.suggest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
+  font-size: 12px;
+  color: var(--text-1);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+.suggest-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  transform: translateY(-1px);
+}
+
 /* Floating Glass Toast */
 .toast {
   position: fixed;

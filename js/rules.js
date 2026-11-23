@@ -100,3 +100,76 @@ export function expandCategoryAllocations(tx) {
   }
   return [{ categoryId: tx.categoryId, amount: Number(tx.amount) || 0 }];
 }
+
+// Fast starter items for Groceries & daily essentials (shown for 1-tap entry)
+export const GROCERY_QUICK_ITEMS = [
+  { label: 'Milk & Dairy', tags: ['#grocery', '#daily'] },
+  { label: 'Vegetables', tags: ['#grocery', '#fresh'] },
+  { label: 'Fruits', tags: ['#grocery', '#fresh'] },
+  { label: 'Kirana Store', tags: ['#grocery'] },
+  { label: 'Supermarket / DMart', tags: ['#grocery'] },
+  { label: 'Bread & Eggs', tags: ['#grocery', '#daily'] },
+  { label: 'Rice / Atta / Oil', tags: ['#grocery', '#monthly'] },
+  { label: 'Snacks & Tea', tags: ['#grocery'] }
+];
+
+// Smart Past-Purchase Suggestion Engine (scans past days, weeks & months)
+export function getPurchaseSuggestions(transactions = [], { type = 'expense', query = '', categoryId = '', limit = 8 } = {}) {
+  const now = Date.now();
+  const q = String(query || '').trim().toLowerCase();
+  const grouped = new Map();
+
+  for (const tx of transactions) {
+    if (tx.deletedAt || tx.isSelfTransfer) continue;
+    if (type && tx.type !== type) continue;
+    const merchant = String(tx.merchant || '').trim();
+    if (!merchant) continue;
+
+    const key = `${merchant.toLowerCase()}|${tx.categoryId || ''}`;
+    const ts = new Date(tx.date).getTime() || 0;
+    const prev = grouped.get(key);
+
+    if (!prev) {
+      grouped.set(key, {
+        key,
+        merchant,
+        categoryId: tx.categoryId || '',
+        walletId: tx.walletId || '',
+        lastAmount: Number(tx.amount) || 0,
+        lastDate: tx.date,
+        lastTs: ts,
+        count: 1,
+        tags: Array.isArray(tx.tags) ? [...tx.tags] : [],
+        note: tx.note || ''
+      });
+    } else {
+      prev.count += 1;
+      if (ts > prev.lastTs) {
+        prev.lastTs = ts;
+        prev.lastDate = tx.date;
+        prev.lastAmount = Number(tx.amount) || 0;
+        prev.walletId = tx.walletId || prev.walletId;
+        if (Array.isArray(tx.tags) && tx.tags.length) prev.tags = [...tx.tags];
+      }
+    }
+  }
+
+  const scored = [];
+  for (const item of grouped.values()) {
+    const mLower = item.merchant.toLowerCase();
+    const tagStr = item.tags.join(' ').toLowerCase();
+    if (q && !mLower.includes(q) && !tagStr.includes(q) && !item.note.toLowerCase().includes(q)) {
+      continue;
+    }
+
+    const daysAgo = Math.max(0, Math.floor((now - item.lastTs) / 86400000));
+    // Score favors frequency across days/months + recency + matching active category + prefix query match
+    let score = item.count * 12 + Math.max(0, 30 - Math.min(daysAgo, 30));
+    if (categoryId && item.categoryId === categoryId) score += 25;
+    if (q && mLower.startsWith(q)) score += 30;
+
+    scored.push({ ...item, daysAgo, score });
+  }
+
+  return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+}
