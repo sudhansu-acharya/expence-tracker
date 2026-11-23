@@ -78,7 +78,7 @@ export function computeWalletBalances(wallets = [], transactions = []) {
   for (const tx of transactions) {
     if (tx.deletedAt) continue;
     const amt = Number(tx.amount) || 0;
-    if (tx.type === 'expense') {
+    if (tx.type === 'expense' || tx.type === 'investment') {
       if (balances.has(tx.walletId)) balances.set(tx.walletId, balances.get(tx.walletId) - amt);
     } else if (tx.type === 'income') {
       if (balances.has(tx.walletId)) balances.set(tx.walletId, balances.get(tx.walletId) + amt);
@@ -111,6 +111,17 @@ export const GROCERY_QUICK_ITEMS = [
   { label: 'Bread & Eggs', tags: ['#grocery', '#daily'] },
   { label: 'Rice / Atta / Oil', tags: ['#grocery', '#monthly'] },
   { label: 'Snacks & Tea', tags: ['#grocery'] }
+];
+
+export const INVESTMENT_QUICK_ITEMS = [
+  { label: 'Monthly SIP', catMatch: 'SIP', tags: ['#sip', '#investment'] },
+  { label: 'Fixed Deposit (FD)', catMatch: 'FD', tags: ['#fd', '#investment'] },
+  { label: 'Nifty 50 Index Fund', catMatch: 'SIP', tags: ['#sip', '#index'] },
+  { label: 'Stocks / Equity', catMatch: 'Stocks', tags: ['#stocks', '#equity'] },
+  { label: 'PPF / EPF Contribution', catMatch: 'PPF', tags: ['#ppf', '#tax-saving'] },
+  { label: 'Gold ETF / SGB', catMatch: 'Gold', tags: ['#gold', '#investment'] },
+  { label: 'Recurring Deposit (RD)', catMatch: 'RD', tags: ['#rd', '#investment'] },
+  { label: 'NPS Tier 1', catMatch: 'NPS', tags: ['#nps', '#retirement'] }
 ];
 
 // Smart Past-Purchase Suggestion Engine (scans past days, weeks & months)

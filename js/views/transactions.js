@@ -14,7 +14,7 @@ export function renderTransactionsView(ctx) {
       if (state.txTypeFilter !== 'all') {
         if (state.txTypeFilter === 'self' && !tx.isSelfTransfer) return false;
         else if (state.txTypeFilter === 'split' && !(Array.isArray(tx.splits) && tx.splits.length)) return false;
-        else if (['expense', 'income', 'transfer'].includes(state.txTypeFilter) && tx.type !== state.txTypeFilter) return false;
+        else if (['expense', 'income', 'investment', 'transfer'].includes(state.txTypeFilter) && tx.type !== state.txTypeFilter) return false;
       }
       if (state.txCategoryFilter && tx.categoryId !== state.txCategoryFilter) {
         const inSplit = Array.isArray(tx.splits) && tx.splits.some(s => s.categoryId === state.txCategoryFilter);
@@ -32,6 +32,7 @@ export function renderTransactionsView(ctx) {
 
   const totalOut = filtered.filter(t => t.type === 'expense' && !t.isSelfTransfer).reduce((s, t) => s + (Number(t.amount) || 0), 0);
   const totalIn = filtered.filter(t => t.type === 'income' && !t.isSelfTransfer).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  const totalInv = filtered.filter(t => t.type === 'investment' && !t.isSelfTransfer).reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
   const activeFilters = [];
   if (state.txCategoryFilter) activeFilters.push(`Category: ${catMap.get(state.txCategoryFilter)?.name || 'Selected'}`);
@@ -54,6 +55,7 @@ export function renderTransactionsView(ctx) {
             ['all', 'All'],
             ['expense', 'Expenses'],
             ['income', 'Income'],
+            ['investment', 'Investments'],
             ['self', 'Self-Transfers'],
             ['split', 'Split Bills']
           ].map(([k, lbl]) => `<button class="pill-btn ${state.txTypeFilter === k ? 'active' : ''}" data-action="set-tx-filter" data-filter="${k}">${lbl}</button>`).join('')}
@@ -67,6 +69,7 @@ export function renderTransactionsView(ctx) {
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <span class="chip chip-green">In ${escHtml(formatMoney(totalIn, settings))}</span>
             <span class="chip chip-red">Out ${escHtml(formatMoney(totalOut, settings))}</span>
+            <span class="chip chip-purple">Inv ${escHtml(formatMoney(totalInv, settings))}</span>
           </div>
         </div>
         <div class="tx-list">

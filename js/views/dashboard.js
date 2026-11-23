@@ -25,7 +25,10 @@ export function renderDashboardView(ctx) {
     .filter(b => b.status !== 'paid')
     .reduce((s, b) => s + (Number(b.totalDue) || 0), 0);
   const effectiveDues = Math.max(creditDues, unpaidBillSum);
-  const netWorth = liquidAssets - effectiveDues;
+  const totalPortfolioInvested = data.transactions
+    .filter(tx => !tx.deletedAt && tx.type === 'investment')
+    .reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+  const netWorth = liquidAssets + totalPortfolioInvested - effectiveDues;
 
   const { start, end, label } = getPeriodBounds(state.dashPeriod, state.dashAnchor, state.customStart, state.customEnd);
   const periodTxs = data.transactions.filter(tx => {
@@ -35,12 +38,22 @@ export function renderDashboardView(ctx) {
 
   let periodInflow = 0;
   let periodOutflow = 0;
+  let periodInvested = 0;
   const catTotals = new Map();
+  const investTotals = new Map();
   const tagTotals = new Map();
 
   for (const tx of periodTxs) {
     if (tx.isSelfTransfer) continue;
     if (tx.type === 'income') periodInflow += Number(tx.amount) || 0;
+    if (tx.type === 'investment') {
+      const amt = Number(tx.amount) || 0;
+      periodInvested += amt;
+      investTotals.set(tx.categoryId, (investTotals.get(tx.categoryId) || 0) + amt);
+      for (const tg of (tx.tags || [])) {
+        tagTotals.set(tg, (tagTotals.get(tg) || 0) + amt);
+      }
+    }
     if (tx.type === 'expense') {
       periodOutflow += Number(tx.amount) || 0;
       for (const alloc of expandCategoryAllocations(tx)) {
@@ -59,6 +72,19 @@ export function renderDashboardView(ctx) {
       return { id: c.id, name: c.name, color: c.color, amount };
     })
     .sort((a, b) => b.amount - a.amount);
+
+  const investSlices = [...investTotals.entries()]
+    .map(([id, amount]) => {
+      const c = catMap.get(id) || { id, name: 'Investment', color: '#8b5cf6' };
+      return { id: c.id, name: c.name, color: c.color, amount };
+    })
+    .sort((a, b) => b.amount - a.amount);
+
+  const incomeBaseForInvest = periodInflow > 0 ? periodInflow : (Number(settings.monthlyIncomeEstimate) || 0);
+  const investPctOfIncome = incomeBaseForInvest > 0
+    ? Math.round((periodInvested / incomeBaseForInvest) * 1000) / 10
+    : null;
+  const investBaseLabel = periodInflow > 0 ? 'of period income' : 'of est. monthly income';
 
   const safe = computeSafeToSpend({
     transactions: data.transactions,
@@ -140,12 +166,12 @@ export function renderDashboardView(ctx) {
               <div class="nw-box-val" style="color:var(--green)">${escHtml(formatMoney(liquidAssets, settings))}</div>
             </div>
             <div class="nw-box">
-              <div class="nw-box-label">Credit Card Dues</div>
-              <div class="nw-box-val" style="color:var(--red)">${escHtml(formatMoney(-effectiveDues, settings))}</div>
+              <div class="nw-box-label">Investments</div>
+              <div class="nw-box-val" style="color:var(--purple)">${escHtml(formatMoney(totalPortfolioInvested, settings))}</div>
             </div>
             <div class="nw-box">
-              <div class="nw-box-label">Net Cash Flow</div>
-              <div class="nw-box-val" style="color:${periodInflow - periodOutflow >= 0 ? 'var(--green)' : 'var(--red)'}">${escHtml(formatMoney(periodInflow - periodOutflow, settings, { showSign: true }))}</div>
+              <div class="nw-box-label">Credit Card Dues</div>
+              <div class="nw-box-val" style="color:var(--red)">${escHtml(formatMoney(-effectiveDues, settings))}</div>
             </div>
           </div>
         </div>
@@ -154,8 +180,11 @@ export function renderDashboardView(ctx) {
       <!-- Quick Add: 1-Tap Groceries & Past Purchase Suggestions -->
       <div class="card" style="padding:13px 15px">
         <div class="card-header" style="margin-bottom:8px">
-          <div class="card-title">${iconSvg('cart')} Quick Add • Groceries &amp; Past Purchases</div>
-          <button class="btn-soft" style="min-height:32px;padding:4px 12px;font-size:12px" data-action="quick-add-grocery">+ Grocery</button>
+          <div class="card-title">${iconSvg('cart')} Quick Add • Groceries, Investments &amp; Past</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-soft" style="min-height:32px;padding:4px 12px;font-size:12px" data-action="quick-add-grocery">+ Grocery</button>
+            <button class="btn-soft" style="min-height:32px;padding:4px 12px;font-size:12px;color:var(--purple)" data-action="quick-add-invest">+ Invest</button>
+          </div>
         </div>
         <div class="quick-strip">
           ${quickSuggestionsHtml || `
@@ -211,19 +240,41 @@ export function renderDashboardView(ctx) {
       <div class="grid-2">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">Income vs. Expense</div>
-            <span class="chip chip-green">Inflow ${escHtml(formatMoney(periodInflow, settings))}</span>
+            <div class="card-title">Income vs. Expense vs. Investment</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <span class="chip chip-green">In ${escHtml(formatMoney(periodInflow, settings))}</span>
+              <span class="chip chip-purple">Inv ${escHtml(formatMoney(periodInvested, settings))}</span>
+            </div>
           </div>
           <canvas class="chart-canvas" id="dashBarCanvas"></canvas>
         </div>
 
-        <div class="card">
+        <div class="card" id="investmentOverviewCard">
           <div class="card-header">
-            <div class="card-title">${iconSvg('tag')} Top #Tags (${escHtml(state.dashPeriod)})</div>
+            <div class="card-title">${iconSvg('target')} Investments (FD, SIP, Equity)</div>
+            <span class="chip chip-purple" id="investPctChip">
+              ${investPctOfIncome !== null ? `${investPctOfIncome}% ${investBaseLabel}` : 'Add income to see %'}
+            </span>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            ${topTagsHtml || '<p class="muted">Add #tags like #vacation or #reimbursable to transactions to track events here.</p>'}
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px">
+            <div style="font-size:20px;font-weight:800;color:var(--purple)">${escHtml(formatMoney(periodInvested, settings))} <span class="muted" style="font-weight:600">this period</span></div>
+            <div class="muted">Total Portfolio: <strong>${escHtml(formatMoney(totalPortfolioInvested, settings))}</strong></div>
           </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width:${Math.min(100, Math.max(0, investPctOfIncome || 0))}%;background:var(--purple)"></div>
+          </div>
+          <div style="margin-top:10px">
+            ${renderCategoryDonutHtml(investSlices, settings, { centerLabel: 'INVESTED', emptyText: 'No investments in this period. Tap + Invest to log SIP, FD, PPF, or Stocks.' })}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">${iconSvg('tag')} Top #Tags (${escHtml(state.dashPeriod)})</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${topTagsHtml || '<p class="muted">Add #tags like #vacation, #sip, or #reimbursable to transactions to track events here.</p>'}
         </div>
       </div>
 
@@ -251,54 +302,59 @@ export function hydrateDashboardCharts(ctx) {
   const labels = [];
   const expBuckets = [];
   const incBuckets = [];
+  const invBuckets = [];
 
   if (state.dashPeriod === 'daily') {
     const slots = ['0-4', '4-8', '8-12', '12-16', '16-20', '20-24'];
-    slots.forEach(s => { labels.push(s + 'h'); expBuckets.push(0); incBuckets.push(0); });
+    slots.forEach(s => { labels.push(s + 'h'); expBuckets.push(0); incBuckets.push(0); invBuckets.push(0); });
     for (const tx of periodTxs) {
       const idx = Math.min(5, Math.floor(new Date(tx.date).getHours() / 4));
       if (tx.type === 'expense') expBuckets[idx] += Number(tx.amount) || 0;
       if (tx.type === 'income') incBuckets[idx] += Number(tx.amount) || 0;
+      if (tx.type === 'investment') invBuckets[idx] += Number(tx.amount) || 0;
     }
   } else if (state.dashPeriod === 'weekly') {
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    dayNames.forEach(d => { labels.push(d); expBuckets.push(0); incBuckets.push(0); });
+    dayNames.forEach(d => { labels.push(d); expBuckets.push(0); incBuckets.push(0); invBuckets.push(0); });
     for (const tx of periodTxs) {
       const d = new Date(tx.date).getDay();
       const idx = d === 0 ? 6 : d - 1;
       if (tx.type === 'expense') expBuckets[idx] += Number(tx.amount) || 0;
       if (tx.type === 'income') incBuckets[idx] += Number(tx.amount) || 0;
+      if (tx.type === 'investment') invBuckets[idx] += Number(tx.amount) || 0;
     }
   } else {
-    for (let w = 1; w <= 5; w++) { labels.push(`W${w}`); expBuckets.push(0); incBuckets.push(0); }
+    for (let w = 1; w <= 5; w++) { labels.push(`W${w}`); expBuckets.push(0); incBuckets.push(0); invBuckets.push(0); }
     for (const tx of periodTxs) {
       const dayOfMonth = new Date(tx.date).getDate();
       const idx = Math.min(4, Math.floor((dayOfMonth - 1) / 7));
       if (tx.type === 'expense') expBuckets[idx] += Number(tx.amount) || 0;
       if (tx.type === 'income') incBuckets[idx] += Number(tx.amount) || 0;
+      if (tx.type === 'investment') invBuckets[idx] += Number(tx.amount) || 0;
     }
   }
 
   drawTrendChart(document.getElementById('dashTrendCanvas'), labels, expBuckets, data.settings);
-  drawComparisonBarChart(document.getElementById('dashBarCanvas'), labels, incBuckets, expBuckets);
+  drawComparisonBarChart(document.getElementById('dashBarCanvas'), labels, incBuckets, expBuckets, invBuckets);
 }
 
 export function renderCompactTxRow(tx, catMap, walletMap, settings) {
-  const cat = catMap.get(tx.categoryId) || { name: tx.type === 'transfer' ? 'Transfer' : 'General', icon: tx.type === 'transfer' ? 'swap' : 'wallet', color: '#6366f1' };
+  const cat = catMap.get(tx.categoryId) || { name: tx.type === 'transfer' ? 'Transfer' : (tx.type === 'investment' ? 'Investment' : 'General'), icon: tx.type === 'transfer' ? 'swap' : (tx.type === 'investment' ? 'target' : 'wallet'), color: '#8b5cf6' };
   const wallet = walletMap.get(tx.walletId)?.name || 'Wallet';
   const tagsHtml = (tx.tags || []).map(t => `<span class="tag-pill">${escHtml(t)}</span>`).join('');
   const splitBadge = Array.isArray(tx.splits) && tx.splits.length ? `<span class="chip chip-blue">Split ×${tx.splits.length}</span>` : '';
   const selfBadge = tx.isSelfTransfer ? `<span class="chip">Self-Transfer</span>` : '';
-  const amtClass = tx.type === 'income' ? 'income' : (tx.type === 'transfer' ? 'transfer' : 'expense');
-  const signed = tx.type === 'income' ? tx.amount : (tx.type === 'transfer' ? tx.amount : -tx.amount);
+  const invBadge = tx.type === 'investment' ? `<span class="chip chip-purple">Investment</span>` : '';
+  const amtClass = tx.type === 'income' ? 'income' : (tx.type === 'transfer' ? 'transfer' : (tx.type === 'investment' ? 'investment' : 'expense'));
+  const signed = tx.type === 'income' ? tx.amount : (tx.type === 'transfer' || tx.type === 'investment' ? tx.amount : -tx.amount);
 
   return `
     <div class="tx-row clickable" data-action="edit-tx" data-id="${escHtml(tx.id)}">
       <div class="cat-badge" style="background:${escHtml(cat.color)}22;color:${escHtml(cat.color)}">${iconSvg(cat.icon)}</div>
       <div class="tx-info">
-        <div class="tx-title">${escHtml(tx.merchant || cat.name)} ${splitBadge} ${selfBadge}</div>
+        <div class="tx-title">${escHtml(tx.merchant || cat.name)} ${invBadge} ${splitBadge} ${selfBadge}</div>
         <div class="tx-meta"><span>${escHtml(cat.name)} • ${escHtml(wallet)} • ${escHtml(formatShortDate(tx.date))}</span> ${tagsHtml}</div>
       </div>
-      <div class="tx-amount ${amtClass}">${tx.type === 'transfer' ? escHtml(formatMoney(tx.amount, settings)) : escHtml(formatMoney(signed, settings, { showSign: true }))}</div>
+      <div class="tx-amount ${amtClass}">${tx.type === 'transfer' || tx.type === 'investment' ? escHtml(formatMoney(tx.amount, settings)) : escHtml(formatMoney(signed, settings, { showSign: true }))}</div>
     </div>`;
 }

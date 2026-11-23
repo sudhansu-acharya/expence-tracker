@@ -141,6 +141,25 @@ export async function loadAllVaultData({ includeDeleted = false } = {}) {
   return data;
 }
 
+export const DEFAULT_INVESTMENT_CATEGORIES = [
+  { name: 'Mutual Fund / SIP', type: 'investment', icon: 'target', color: '#8b5cf6', isSystem: true },
+  { name: 'Fixed Deposit (FD)', type: 'investment', icon: 'bank', color: '#6366f1', isSystem: true },
+  { name: 'Stocks / Equity', type: 'investment', icon: 'sparkles', color: '#0ea5e9', isSystem: true },
+  { name: 'PPF / EPF / NPS', type: 'investment', icon: 'shield', color: '#14b8a6', isSystem: true },
+  { name: 'Gold / SGB', type: 'investment', icon: 'income', color: '#eab308', isSystem: true },
+  { name: 'Recurring Deposit (RD)', type: 'investment', icon: 'wallet', color: '#a855f7', isSystem: true }
+];
+
+export async function ensureInvestmentCategories() {
+  const existing = await getAllRecords('categories', { includeDeleted: true });
+  const hasInvest = existing.some(c => c.type === 'investment' && !c.deletedAt);
+  if (hasInvest) return false;
+  for (const c of DEFAULT_INVESTMENT_CATEGORIES) {
+    await putRecord('categories', { ...c, parentId: null });
+  }
+  return true;
+}
+
 export async function seedInitialVaultData() {
   const existingCats = await getAllRecords('categories', { includeDeleted: true });
   if (existingCats.length > 0) return;
@@ -162,7 +181,7 @@ export async function seedInitialVaultData() {
   ];
 
   const catMap = {};
-  for (const c of defaultCategories) {
+  for (const c of [...defaultCategories, ...DEFAULT_INVESTMENT_CATEGORIES]) {
     const saved = await putRecord('categories', { ...c, parentId: null });
     catMap[c.name] = saved.id;
   }

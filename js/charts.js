@@ -97,7 +97,7 @@ export function drawTrendChart(canvas, labels, values, settings) {
   }
 }
 
-export function drawComparisonBarChart(canvas, labels, incomeVals, expenseVals) {
+export function drawComparisonBarChart(canvas, labels, incomeVals, expenseVals, investVals = []) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
@@ -110,14 +110,16 @@ export function drawComparisonBarChart(canvas, labels, incomeVals, expenseVals) 
 
   const green = cssVar('--green', '#10b981');
   const red = cssVar('--red', '#ef4444');
+  const purple = cssVar('--purple', '#8b5cf6');
   const text3 = cssVar('--text-3', '#64748b');
   const border = cssVar('--border', 'rgba(15,23,42,0.08)');
 
+  const hasInv = Array.isArray(investVals) && investVals.length === labels.length;
   ctx.clearRect(0, 0, width, height);
   const padL = 14, padR = 14, padT = 18, padB = 28;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
-  const maxVal = Math.max(...incomeVals, ...expenseVals, 1) * 1.15;
+  const maxVal = Math.max(...incomeVals, ...expenseVals, ...(hasInv ? investVals : [0]), 1) * 1.15;
 
   ctx.strokeStyle = border;
   ctx.beginPath();
@@ -126,7 +128,9 @@ export function drawComparisonBarChart(canvas, labels, incomeVals, expenseVals) 
   ctx.stroke();
 
   const groupW = plotW / Math.max(labels.length, 1);
-  const barW = Math.min(18, Math.max(7, groupW * 0.28));
+  const barW = hasInv
+    ? Math.min(14, Math.max(6, groupW * 0.22))
+    : Math.min(18, Math.max(7, groupW * 0.28));
 
   ctx.font = '600 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.textAlign = 'center';
@@ -135,26 +139,46 @@ export function drawComparisonBarChart(canvas, labels, incomeVals, expenseVals) 
     const cx = padL + groupW * i + groupW / 2;
     const incH = (incomeVals[i] / maxVal) * plotH;
     const expH = (expenseVals[i] / maxVal) * plotH;
+    const invH = hasInv ? (investVals[i] / maxVal) * plotH : 0;
 
-    ctx.fillStyle = green;
-    ctx.beginPath();
-    ctx.roundRect(cx - barW - 2, padT + plotH - incH, barW, Math.max(incH, 0), [5, 5, 0, 0]);
-    ctx.fill();
+    if (hasInv) {
+      const gap = 2;
+      const startX = cx - (barW * 3 + gap * 2) / 2;
+      ctx.fillStyle = green;
+      ctx.beginPath();
+      ctx.roundRect(startX, padT + plotH - incH, barW, Math.max(incH, 0), [4, 4, 0, 0]);
+      ctx.fill();
 
-    ctx.fillStyle = red;
-    ctx.beginPath();
-    ctx.roundRect(cx + 2, padT + plotH - expH, barW, Math.max(expH, 0), [5, 5, 0, 0]);
-    ctx.fill();
+      ctx.fillStyle = red;
+      ctx.beginPath();
+      ctx.roundRect(startX + barW + gap, padT + plotH - expH, barW, Math.max(expH, 0), [4, 4, 0, 0]);
+      ctx.fill();
+
+      ctx.fillStyle = purple;
+      ctx.beginPath();
+      ctx.roundRect(startX + (barW + gap) * 2, padT + plotH - invH, barW, Math.max(invH, 0), [4, 4, 0, 0]);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = green;
+      ctx.beginPath();
+      ctx.roundRect(cx - barW - 2, padT + plotH - incH, barW, Math.max(incH, 0), [5, 5, 0, 0]);
+      ctx.fill();
+
+      ctx.fillStyle = red;
+      ctx.beginPath();
+      ctx.roundRect(cx + 2, padT + plotH - expH, barW, Math.max(expH, 0), [5, 5, 0, 0]);
+      ctx.fill();
+    }
 
     ctx.fillStyle = text3;
     ctx.fillText(lbl, cx, height - 8);
   });
 }
 
-export function renderCategoryDonutHtml(slices, settings) {
+export function renderCategoryDonutHtml(slices, settings, { centerLabel = 'SPENT', emptyText = 'No expenses recorded in this period.' } = {}) {
   const total = slices.reduce((s, x) => s + x.amount, 0);
   if (total <= 0) {
-    return '<p class="muted" style="text-align:center;padding:26px 0">No expenses recorded in this period.</p>';
+    return `<p class="muted" style="text-align:center;padding:26px 0">${escHtml(emptyText)}</p>`;
   }
   const r = 46;
   const c = 2 * Math.PI * r;
@@ -180,7 +204,7 @@ export function renderCategoryDonutHtml(slices, settings) {
     <div class="donut-layout">
       <svg width="124" height="124" viewBox="0 0 120 120" style="flex-shrink:0">
         ${rings}
-        <text x="60" y="56" text-anchor="middle" font-size="9.5" fill="var(--text-3)" font-weight="700">SPENT</text>
+        <text x="60" y="56" text-anchor="middle" font-size="9.5" fill="var(--text-3)" font-weight="700">${escHtml(centerLabel)}</text>
         <text x="60" y="71" text-anchor="middle" font-size="12" fill="var(--text-1)" font-weight="800">${escHtml(formatMoney(total, settings))}</text>
       </svg>
       <div class="donut-legend">${legend}</div>

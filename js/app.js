@@ -9,9 +9,9 @@ import {
   setQuickPin, setAutoLockMinutes, enableBiometric, checkBiometricPresence
 } from './auth.js';
 import {
-  getAuthMeta, loadAllVaultData, putRecord, softDeleteRecord, hasSessionKey
+  getAuthMeta, loadAllVaultData, putRecord, softDeleteRecord, hasSessionKey, ensureInvestmentCategories
 } from './db.js';
-import { matchCategorizationRule, detectSelfTransfer, getPurchaseSuggestions, GROCERY_QUICK_ITEMS } from './rules.js';
+import { matchCategorizationRule, detectSelfTransfer, getPurchaseSuggestions, GROCERY_QUICK_ITEMS, INVESTMENT_QUICK_ITEMS } from './rules.js';
 import {
   parseMessageOnDevice, AccountAggregatorAdapter, SAMPLE_SMS_LIBRARY
 } from './parser.js';
@@ -109,6 +109,7 @@ function applyTheme(settings) {
 }
 
 async function refreshVaultData() {
+  await ensureInvestmentCategories();
   const raw = await loadAllVaultData();
   const settingsObj = raw.settings.find(s => s.id === 'app_settings') || raw.settings[0] || {
     id: 'app_settings', defaultCurrency: 'INR', numberFormat: 'en-IN', themeMode: 'system', accentColor: 'emerald', hideAmounts: false
@@ -364,7 +365,17 @@ function buildModalSuggestionsHtml(m) {
       </div>
     </div>` : '';
 
-  return pastHtml + groceryChipsHtml;
+  const investChipsHtml = m.type === 'investment' ? `
+    <div style="margin-top:8px">
+      <div class="muted" style="font-weight:700;margin-bottom:5px">Quick Investments (FD, SIP, Equity, PPF, Gold)</div>
+      <div class="quick-strip">
+        ${INVESTMENT_QUICK_ITEMS.map(item => `
+          <button type="button" class="pill-btn" data-action="apply-invest-item" data-item="${escHtml(item.label)}" data-catmatch="${escHtml(item.catMatch)}" data-tags="${escHtml(item.tags.join(', '))}">${escHtml(item.label)}</button>
+        `).join('')}
+      </div>
+    </div>` : '';
+
+  return pastHtml + groceryChipsHtml + investChipsHtml;
 }
 
 function renderTransactionModal() {
@@ -375,7 +386,10 @@ function renderTransactionModal() {
   const amtNum = evalSafeArithmetic(m.calcBuffer);
   const splitSum = m.splits.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const splitDiff = Math.round((amtNum - splitSum) * 100) / 100;
-  const cats = vaultData.categories.filter(c => m.type === 'income' ? c.type === 'income' : c.type === 'expense');
+  const cats = vaultData.categories.filter(c =>
+    m.type === 'income' ? c.type === 'income'
+      : (m.type === 'investment' ? c.type === 'investment' : c.type === 'expense')
+  );
 
   backdrop.innerHTML = `
     <div class="modal-sheet">
@@ -387,8 +401,13 @@ function renderTransactionModal() {
         </div>
       </div>
 
-      <div class="segmented" style="margin-bottom:8px">
-        ${['expense', 'income', 'transfer'].map(t => `<button class="seg-btn ${m.type === t ? 'active' : ''}" data-action="modal-tx-type" data-type="${t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
+      <div class="segmented cols-4" style="margin-bottom:8px">
+        ${[
+          ['expense', 'Expense'],
+          ['income', 'Income'],
+          ['investment', 'Invest'],
+          ['transfer', 'Transfer']
+        ].map(([t, lbl]) => `<button class="seg-btn ${m.type === t ? 'active' : ''}" data-action="modal-tx-type" data-type="${t}">${lbl}</button>`).join('')}
       </div>
 
       <div class="calc-display">
@@ -795,6 +814,15 @@ document.addEventListener('click', async e => {
         tags: '#grocery',
         autoRuleText: item ? `Quick Grocery → ${item}` : 'Grocery Quick Mode • Past purchases shown below'
       });
+    } else if (action === 'quick-add-invest') {
+      const invCat = vaultData.categories.find(c => c.type === 'investment');
+      openTransactionModal(null, {
+        type: 'investment',
+        categoryId: invCat?.id || '',
+        merchant: '',
+        tags: '#investment',
+        autoRuleText: 'Investment Mode • Pick SIP, FD, Stocks, PPF, or Gold below'
+      });
     } else if (action === 'quick-add-preset') {
       openTransactionModal(null, {
         type: 'expense',
@@ -819,6 +847,15 @@ document.addEventListener('click', async e => {
       m.merchant = btn.dataset.item || m.merchant;
       if (btn.dataset.tags && !m.tags) m.tags = btn.dataset.tags;
       renderTransactionModal();
+    } else if (action === 'apply-invest-item' && appState.modalState) {
+      const m = appState.modalState;
+      m.merchant = btn.dataset.item || m.merchant;
+      const kw = (btn.dataset.catmatch || '').toLowerCase();
+      const matched = vaultData.categories.find(c => c.type === 'investment' && c.name.toLowerCase().includes(kw));
+      if (matched) m.categoryId = matched.id;
+      if (btn.dataset.tags) m.tags = btn.dataset.tags;
+      m.autoRuleText = `Selected ${m.merchant}`;
+      renderTransactionModal();
     } else if (action === 'edit-tx') {
       const tx = vaultData.transactions.find(t => t.id === btn.dataset.id);
       if (tx) openTransactionModal(tx);
@@ -835,7 +872,8 @@ document.addEventListener('click', async e => {
       closeModal();
     } else if (action === 'modal-tx-type') {
       appState.modalState.type = btn.dataset.type;
-      const firstCat = vaultData.categories.find(c => c.type === (btn.dataset.type === 'income' ? 'income' : 'expense'));
+      const targetType = btn.dataset.type === 'income' ? 'income' : (btn.dataset.type === 'investment' ? 'investment' : 'expense');
+      const firstCat = vaultData.categories.find(c => c.type === targetType);
       if (firstCat) appState.modalState.categoryId = firstCat.id;
       renderTransactionModal();
     } else if (action === 'calc-key') {
@@ -1047,7 +1085,7 @@ document.addEventListener('click', async e => {
         <form id="categoryForm" class="stack" style="gap:10px">
           <div><label class="field-label">Category Name</label><input class="input" id="cName" placeholder="e.g. Pets, Coffee" required /></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <div><label class="field-label">Type</label><select class="input" id="cType"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+            <div><label class="field-label">Type</label><select class="input" id="cType"><option value="expense">Expense</option><option value="income">Income</option><option value="investment">Investment</option></select></div>
             <div><label class="field-label">Color</label><input class="input" type="color" id="cColor" value="#0d9488" /></div>
           </div>
           <div>
