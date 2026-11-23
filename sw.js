@@ -1,11 +1,13 @@
 // Offline-First Service Worker (Network-First with Full Precache Offline Fallback)
-const CACHE_NAME = 'cashewflow-v1.0.5';
+const CACHE_NAME = 'cashewflow-v1.0.6';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './assets/icons/icon-192.svg',
-  './assets/icons/icon-512.svg',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png',
+  './assets/icons/icon-maskable-512.png',
+  './assets/icons/apple-touch-icon.png',
   './css/tokens.css',
   './css/layout.css',
   './css/components.css',

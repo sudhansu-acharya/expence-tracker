@@ -6,7 +6,7 @@ import { putRecord } from './db.js';
 export function sendLocalNotification(title, body) {
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification(title, { body, icon: './assets/icons/icon-192.svg' });
+      new Notification(title, { body, icon: './assets/icons/icon-192.png' });
     } catch {
       // Ignore if browser restricts Notification constructor without SW
     }
