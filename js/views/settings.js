@@ -30,6 +30,23 @@ export function renderSettingsView(ctx) {
             </div>
 
             <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <label class="field-label" style="margin:0">Liquid Glass Level</label>
+                <span class="chip chip-accent" id="glassLevelReadout">${escHtml(s.glassLevel ?? 70)}%</span>
+              </div>
+              <input class="glass-slider" type="range" id="settingGlassLevel" min="0" max="100" step="5" value="${escHtml(s.glassLevel ?? 70)}" />
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+                ${[
+                  ['Solid', 0],
+                  ['Subtle', 30],
+                  ['Balanced', 65],
+                  ['iOS Liquid', 85],
+                  ['Ultra Clear', 100]
+                ].map(([lbl, val]) => `<button class="pill-btn ${(s.glassLevel ?? 70) === val ? 'active' : ''}" data-action="set-glass-level" data-level="${val}">${lbl}</button>`).join('')}
+              </div>
+            </div>
+
+            <div>
               <label class="field-label">Material You Accent Color</label>
               <div class="accent-dots">
                 ${accents.map(([key, hex]) => `<button class="accent-dot ${s.accentColor === key ? 'active' : ''}" style="background:${hex}" data-action="set-accent" data-accent="${key}" title="${key}"></button>`).join('')}

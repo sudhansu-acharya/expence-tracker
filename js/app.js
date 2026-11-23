@@ -73,6 +73,31 @@ function showToast(msg) {
   toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
 }
 
+function applyGlassLevel(level, resolvedTheme) {
+  const lvl = Math.max(0, Math.min(100, Number(level ?? 70)));
+  const t = lvl / 100;
+  const root = document.documentElement.style;
+  const blur = Math.round(4 + t * 32);
+  const blurHeavy = Math.round(8 + t * 40);
+  const sat = Math.round(115 + t * 145);
+  const satHeavy = Math.round(125 + t * 165);
+
+  const isDark = resolvedTheme === 'dark';
+  const alpha = (isDark ? 0.92 - t * 0.62 : 0.94 - t * 0.62).toFixed(2);
+  const alphaStrong = (isDark ? 0.96 - t * 0.50 : 0.97 - t * 0.48).toFixed(2);
+  const alphaSubtle = (isDark ? 0.78 - t * 0.52 : 0.86 - t * 0.62).toFixed(2);
+  const rim = (0.25 + t * 0.70).toFixed(2);
+  const spec = (0.12 + t * 0.88).toFixed(2);
+
+  root.setProperty('--glass-alpha', alpha);
+  root.setProperty('--glass-alpha-strong', alphaStrong);
+  root.setProperty('--glass-alpha-subtle', alphaSubtle);
+  root.setProperty('--glass-rim', rim);
+  root.setProperty('--glass-spec', spec);
+  root.setProperty('--glass-blur', `blur(${blur}px) saturate(${sat}%)`);
+  root.setProperty('--glass-blur-heavy', `blur(${blurHeavy}px) saturate(${satHeavy}%)`);
+}
+
 function applyTheme(settings) {
   const mode = settings?.themeMode || 'system';
   const resolved = mode === 'system'
@@ -80,6 +105,7 @@ function applyTheme(settings) {
     : mode;
   document.documentElement.setAttribute('data-theme', resolved);
   document.documentElement.setAttribute('data-accent', settings?.accentColor || 'emerald');
+  applyGlassLevel(settings?.glassLevel ?? 70, resolved);
 }
 
 async function refreshVaultData() {
@@ -1051,6 +1077,12 @@ document.addEventListener('click', async e => {
       await putRecord('settings', { ...vaultData.settings, accentColor: btn.dataset.accent, updatedAt: nowIso() });
       await refreshVaultData();
       renderApp();
+    } else if (action === 'set-glass-level') {
+      const level = Number(btn.dataset.level);
+      await putRecord('settings', { ...vaultData.settings, glassLevel: level, updatedAt: nowIso() });
+      await refreshVaultData();
+      renderApp();
+      showToast(`Liquid Glass level set to ${level}%`);
     } else if (action === 'save-display-settings') {
       const cur = document.getElementById('settingCurrency').value;
       const inc = Number(document.getElementById('settingIncomeEst').value) || 0;
@@ -1249,7 +1281,12 @@ document.addEventListener('submit', async e => {
 // Input & Change handlers
 document.addEventListener('input', e => {
   const t = e.target;
-  if (t.id === 'txSearchInput') {
+  if (t.id === 'settingGlassLevel') {
+    const lvl = Number(t.value);
+    const readout = document.getElementById('glassLevelReadout');
+    if (readout) readout.textContent = `${lvl}%`;
+    applyGlassLevel(lvl, document.documentElement.getAttribute('data-theme') || 'light');
+  } else if (t.id === 'txSearchInput') {
     appState.txSearch = t.value;
     renderApp();
     const el = document.getElementById('txSearchInput');
@@ -1285,7 +1322,13 @@ document.addEventListener('input', e => {
 document.addEventListener('change', async e => {
   const t = e.target;
   try {
-    if (t.id === 'txWalletSelect') { appState.txWalletFilter = t.value; renderApp(); }
+    if (t.id === 'settingGlassLevel') {
+      const lvl = Number(t.value);
+      await putRecord('settings', { ...vaultData.settings, glassLevel: lvl, updatedAt: nowIso() });
+      await refreshVaultData();
+      renderApp();
+      showToast(`Liquid Glass level saved (${lvl}%)`);
+    } else if (t.id === 'txWalletSelect') { appState.txWalletFilter = t.value; renderApp(); }
     else if (t.id === 'customStartInput') { appState.customStart = t.value; renderApp(); }
     else if (t.id === 'customEndInput') { appState.customEnd = t.value; renderApp(); }
     else if (t.id === 'settingAutoLock') {

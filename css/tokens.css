@@ -21,23 +21,34 @@
   --accent-on: #ffffff;
   --accent-glow: rgba(13, 148, 136, 0.32);
 
-  /* Light Liquid Glass Surfaces */
-  --bg-app: #e9f0f7;
-  --bg-mesh:
-    radial-gradient(at 8% 6%, rgba(45, 212, 191, 0.28) 0px, transparent 48%),
-    radial-gradient(at 92% 10%, rgba(99, 102, 241, 0.22) 0px, transparent 50%),
-    radial-gradient(at 78% 88%, rgba(56, 189, 248, 0.24) 0px, transparent 52%),
-    radial-gradient(at 14% 86%, rgba(244, 114, 182, 0.16) 0px, transparent 48%),
-    linear-gradient(160deg, #eef4fb 0%, #e5edf6 52%, #edf2f8 100%);
+  /* Dynamic Liquid Glass Level Variables (controlled by Settings slider 0-100) */
+  --glass-alpha: 0.44;
+  --glass-alpha-strong: 0.60;
+  --glass-alpha-subtle: 0.30;
+  --glass-rim: 0.85;
+  --glass-spec: 0.78;
+  --glass-blur: blur(26px) saturate(215%);
+  --glass-blur-heavy: blur(36px) saturate(240%);
 
-  --glass-bg: rgba(255, 255, 255, 0.58);
-  --glass-bg-strong: rgba(255, 255, 255, 0.74);
-  --glass-bg-subtle: rgba(255, 255, 255, 0.42);
-  --glass-border: rgba(255, 255, 255, 0.78);
+  /* Light Liquid Glass Surfaces */
+  --bg-app: #dfe9f5;
+  --bg-mesh:
+    radial-gradient(circle at 12% 8%, rgba(20, 184, 166, 0.42) 0%, transparent 46%),
+    radial-gradient(circle at 88% 14%, rgba(99, 102, 241, 0.36) 0%, transparent 48%),
+    radial-gradient(circle at 76% 84%, rgba(14, 165, 233, 0.38) 0%, transparent 50%),
+    radial-gradient(circle at 16% 88%, rgba(244, 114, 182, 0.28) 0%, transparent 46%),
+    linear-gradient(155deg, #e8f1fb 0%, #dbe7f5 50%, #e5eef9 100%);
+
+  --glass-bg: rgba(255, 255, 255, var(--glass-alpha));
+  --glass-bg-strong: rgba(255, 255, 255, var(--glass-alpha-strong));
+  --glass-bg-subtle: rgba(255, 255, 255, var(--glass-alpha-subtle));
+  --glass-border: rgba(255, 255, 255, var(--glass-rim));
   --glass-border-outer: rgba(15, 23, 42, 0.08);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.92), inset 0 -1px 0 rgba(255, 255, 255, 0.28);
-  --glass-blur: blur(24px) saturate(190%);
-  --glass-blur-heavy: blur(34px) saturate(210%);
+  --glass-highlight:
+    inset 0 1.5px 1px rgba(255, 255, 255, var(--glass-rim)),
+    inset 0 -1px 1px rgba(15, 23, 42, 0.06),
+    inset 1px 0 1px rgba(255, 255, 255, 0.45);
+  --glass-btn-gloss: linear-gradient(180deg, rgba(255, 255, 255, calc(0.68 * var(--glass-spec))) 0%, rgba(255, 255, 255, calc(0.14 * var(--glass-spec))) 48%, rgba(255, 255, 255, 0) 52%);
 
   --bg-card: var(--glass-bg);
   --bg-card-2: var(--glass-bg-subtle);
@@ -70,20 +81,24 @@
 }
 
 [data-theme="dark"] {
-  --bg-app: #070b14;
+  --bg-app: #060a13;
   --bg-mesh:
-    radial-gradient(at 10% 8%, rgba(20, 184, 166, 0.24) 0px, transparent 50%),
-    radial-gradient(at 88% 12%, rgba(99, 102, 241, 0.25) 0px, transparent 50%),
-    radial-gradient(at 80% 88%, rgba(14, 165, 233, 0.20) 0px, transparent 52%),
-    radial-gradient(at 12% 90%, rgba(236, 72, 153, 0.15) 0px, transparent 48%),
-    linear-gradient(160deg, #060a12 0%, #0b1220 55%, #070c16 100%);
+    radial-gradient(circle at 12% 8%, rgba(20, 184, 166, 0.36) 0%, transparent 48%),
+    radial-gradient(circle at 88% 12%, rgba(99, 102, 241, 0.38) 0%, transparent 48%),
+    radial-gradient(circle at 80% 88%, rgba(14, 165, 233, 0.30) 0%, transparent 50%),
+    radial-gradient(circle at 12% 90%, rgba(236, 72, 153, 0.24) 0%, transparent 48%),
+    linear-gradient(155deg, #050911 0%, #0b1324 55%, #060b15 100%);
 
-  --glass-bg: rgba(22, 30, 48, 0.56);
-  --glass-bg-strong: rgba(24, 34, 54, 0.78);
-  --glass-bg-subtle: rgba(255, 255, 255, 0.06);
-  --glass-border: rgba(255, 255, 255, 0.16);
-  --glass-border-outer: rgba(255, 255, 255, 0.08);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  --glass-bg: rgba(20, 29, 48, var(--glass-alpha));
+  --glass-bg-strong: rgba(24, 35, 58, var(--glass-alpha-strong));
+  --glass-bg-subtle: rgba(255, 255, 255, calc(var(--glass-alpha-subtle) * 0.34));
+  --glass-border: rgba(255, 255, 255, calc(var(--glass-rim) * 0.34));
+  --glass-border-outer: rgba(255, 255, 255, 0.10);
+  --glass-highlight:
+    inset 0 1.5px 1px rgba(255, 255, 255, calc(var(--glass-rim) * 0.38)),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.35),
+    inset 1px 0 1px rgba(255, 255, 255, 0.12);
+  --glass-btn-gloss: linear-gradient(180deg, rgba(255, 255, 255, calc(0.32 * var(--glass-spec))) 0%, rgba(255, 255, 255, calc(0.06 * var(--glass-spec))) 48%, rgba(255, 255, 255, 0) 52%);
 
   --bg-card: var(--glass-bg);
   --bg-card-2: var(--glass-bg-subtle);

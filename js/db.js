@@ -197,6 +197,7 @@ export async function seedInitialVaultData() {
     numberFormat: 'en-IN',
     themeMode: 'system',
     accentColor: 'emerald',
+    glassLevel: 70,
     hideAmounts: false,
     monthlyIncomeEstimate: 0,
     monthlySavingsTarget: 0,
