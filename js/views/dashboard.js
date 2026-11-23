@@ -182,16 +182,16 @@ export function renderDashboardView(ctx) {
         <div class="card-header" style="margin-bottom:8px">
           <div class="card-title">${iconSvg('cart')} Quick Add • Groceries, Investments &amp; Past</div>
           <div style="display:flex;gap:6px">
-            <button class="btn-soft" style="min-height:32px;padding:4px 12px;font-size:12px" data-action="quick-add-grocery">+ Grocery</button>
-            <button class="btn-soft" style="min-height:32px;padding:4px 12px;font-size:12px;color:var(--purple)" data-action="quick-add-invest">+ Invest</button>
+            <button class="btn-soft" style="min-height:32px;padding:4px 12px;font-size:12px" data-action="quick-add-grocery">${iconSvg('cart')} Grocery</button>
+            <button class="btn-soft" style="min-height:32px;padding:4px 12px;font-size:12px;color:var(--purple)" data-action="quick-add-invest">${iconSvg('trendingUp')} Invest</button>
           </div>
         </div>
         <div class="quick-strip">
           ${quickSuggestionsHtml || `
-            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Milk & Dairy">${iconSvg('cart')} <span><strong>Milk &amp; Dairy</strong></span></button>
-            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Vegetables">${iconSvg('cart')} <span><strong>Vegetables</strong></span></button>
-            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Fruits">${iconSvg('cart')} <span><strong>Fruits</strong></span></button>
-            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Kirana Store">${iconSvg('cart')} <span><strong>Kirana Store</strong></span></button>
+            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Milk & Dairy"><span style="color:#0ea5e9">${iconSvg('milk')}</span> <span><strong>Milk &amp; Dairy</strong></span></button>
+            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Vegetables"><span style="color:#10b981">${iconSvg('veggies')}</span> <span><strong>Vegetables</strong></span></button>
+            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Fruits"><span style="color:#f43f5e">${iconSvg('fruit')}</span> <span><strong>Fruits</strong></span></button>
+            <button class="suggest-chip" data-action="quick-add-grocery" data-item="Kirana Store"><span style="color:#f59e0b">${iconSvg('store')}</span> <span><strong>Kirana Store</strong></span></button>
           `}
         </div>
       </div>
@@ -251,7 +251,7 @@ export function renderDashboardView(ctx) {
 
         <div class="card" id="investmentOverviewCard">
           <div class="card-header">
-            <div class="card-title">${iconSvg('target')} Investments (FD, SIP, Equity)</div>
+            <div class="card-title">${iconSvg('trendingUp')} Investments (FD, SIP, Equity)</div>
             <span class="chip chip-purple" id="investPctChip">
               ${investPctOfIncome !== null ? `${investPctOfIncome}% ${investBaseLabel}` : 'Add income to see %'}
             </span>

@@ -142,7 +142,7 @@ export function renderBudgetsView(ctx) {
 
       <div class="card">
         <div class="card-header">
-          <div class="card-title">Savings Goals</div>
+          <div class="card-title">${iconSvg('piggy')} Savings Goals</div>
           <button class="btn-soft" data-action="open-goal-modal">+ New Goal</button>
         </div>
         <div class="grid-2">

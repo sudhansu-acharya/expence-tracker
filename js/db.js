@@ -142,12 +142,12 @@ export async function loadAllVaultData({ includeDeleted = false } = {}) {
 }
 
 export const DEFAULT_INVESTMENT_CATEGORIES = [
-  { name: 'Mutual Fund / SIP', type: 'investment', icon: 'target', color: '#8b5cf6', isSystem: true },
+  { name: 'Mutual Fund / SIP', type: 'investment', icon: 'trendingUp', color: '#8b5cf6', isSystem: true },
   { name: 'Fixed Deposit (FD)', type: 'investment', icon: 'bank', color: '#6366f1', isSystem: true },
-  { name: 'Stocks / Equity', type: 'investment', icon: 'sparkles', color: '#0ea5e9', isSystem: true },
+  { name: 'Stocks / Equity', type: 'investment', icon: 'candles', color: '#0ea5e9', isSystem: true },
   { name: 'PPF / EPF / NPS', type: 'investment', icon: 'shield', color: '#14b8a6', isSystem: true },
-  { name: 'Gold / SGB', type: 'investment', icon: 'income', color: '#eab308', isSystem: true },
-  { name: 'Recurring Deposit (RD)', type: 'investment', icon: 'wallet', color: '#a855f7', isSystem: true }
+  { name: 'Gold / SGB', type: 'investment', icon: 'coins', color: '#eab308', isSystem: true },
+  { name: 'Recurring Deposit (RD)', type: 'investment', icon: 'piggy', color: '#a855f7', isSystem: true }
 ];
 
 export async function ensureInvestmentCategories() {

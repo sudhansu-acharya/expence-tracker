@@ -360,7 +360,7 @@ function buildModalSuggestionsHtml(m) {
       <div class="muted" style="font-weight:700;margin-bottom:5px">Quick Grocery Items</div>
       <div class="quick-strip">
         ${GROCERY_QUICK_ITEMS.map(item => `
-          <button type="button" class="pill-btn" data-action="apply-grocery-item" data-item="${escHtml(item.label)}" data-tags="${escHtml(item.tags.join(', '))}">${escHtml(item.label)}</button>
+          <button type="button" class="suggest-chip" data-action="apply-grocery-item" data-item="${escHtml(item.label)}" data-tags="${escHtml(item.tags.join(', '))}"><span style="color:var(--green)">${iconSvg(item.icon || 'cart')}</span><span>${escHtml(item.label)}</span></button>
         `).join('')}
       </div>
     </div>` : '';
@@ -370,7 +370,7 @@ function buildModalSuggestionsHtml(m) {
       <div class="muted" style="font-weight:700;margin-bottom:5px">Quick Investments (FD, SIP, Equity, PPF, Gold)</div>
       <div class="quick-strip">
         ${INVESTMENT_QUICK_ITEMS.map(item => `
-          <button type="button" class="pill-btn" data-action="apply-invest-item" data-item="${escHtml(item.label)}" data-catmatch="${escHtml(item.catMatch)}" data-tags="${escHtml(item.tags.join(', '))}">${escHtml(item.label)}</button>
+          <button type="button" class="suggest-chip" data-action="apply-invest-item" data-item="${escHtml(item.label)}" data-catmatch="${escHtml(item.catMatch)}" data-tags="${escHtml(item.tags.join(', '))}"><span style="color:var(--purple)">${iconSvg(item.icon || 'trendingUp')}</span><span>${escHtml(item.label)}</span></button>
         `).join('')}
       </div>
     </div>` : '';

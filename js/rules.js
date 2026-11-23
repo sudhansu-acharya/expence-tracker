@@ -103,25 +103,25 @@ export function expandCategoryAllocations(tx) {
 
 // Fast starter items for Groceries & daily essentials (shown for 1-tap entry)
 export const GROCERY_QUICK_ITEMS = [
-  { label: 'Milk & Dairy', tags: ['#grocery', '#daily'] },
-  { label: 'Vegetables', tags: ['#grocery', '#fresh'] },
-  { label: 'Fruits', tags: ['#grocery', '#fresh'] },
-  { label: 'Kirana Store', tags: ['#grocery'] },
-  { label: 'Supermarket / DMart', tags: ['#grocery'] },
-  { label: 'Bread & Eggs', tags: ['#grocery', '#daily'] },
-  { label: 'Rice / Atta / Oil', tags: ['#grocery', '#monthly'] },
-  { label: 'Snacks & Tea', tags: ['#grocery'] }
+  { label: 'Milk & Dairy', icon: 'milk', tags: ['#grocery', '#daily'] },
+  { label: 'Vegetables', icon: 'veggies', tags: ['#grocery', '#fresh'] },
+  { label: 'Fruits', icon: 'fruit', tags: ['#grocery', '#fresh'] },
+  { label: 'Kirana Store', icon: 'store', tags: ['#grocery'] },
+  { label: 'Supermarket / DMart', icon: 'cart', tags: ['#grocery'] },
+  { label: 'Bread & Eggs', icon: 'food', tags: ['#grocery', '#daily'] },
+  { label: 'Rice / Atta / Oil', icon: 'bag', tags: ['#grocery', '#monthly'] },
+  { label: 'Snacks & Tea', icon: 'coffee', tags: ['#grocery'] }
 ];
 
 export const INVESTMENT_QUICK_ITEMS = [
-  { label: 'Monthly SIP', catMatch: 'SIP', tags: ['#sip', '#investment'] },
-  { label: 'Fixed Deposit (FD)', catMatch: 'FD', tags: ['#fd', '#investment'] },
-  { label: 'Nifty 50 Index Fund', catMatch: 'SIP', tags: ['#sip', '#index'] },
-  { label: 'Stocks / Equity', catMatch: 'Stocks', tags: ['#stocks', '#equity'] },
-  { label: 'PPF / EPF Contribution', catMatch: 'PPF', tags: ['#ppf', '#tax-saving'] },
-  { label: 'Gold ETF / SGB', catMatch: 'Gold', tags: ['#gold', '#investment'] },
-  { label: 'Recurring Deposit (RD)', catMatch: 'RD', tags: ['#rd', '#investment'] },
-  { label: 'NPS Tier 1', catMatch: 'NPS', tags: ['#nps', '#retirement'] }
+  { label: 'Monthly SIP', icon: 'trendingUp', catMatch: 'SIP', tags: ['#sip', '#investment'] },
+  { label: 'Fixed Deposit (FD)', icon: 'bank', catMatch: 'FD', tags: ['#fd', '#investment'] },
+  { label: 'Nifty 50 Index Fund', icon: 'trendingUp', catMatch: 'SIP', tags: ['#sip', '#index'] },
+  { label: 'Stocks / Equity', icon: 'candles', catMatch: 'Stocks', tags: ['#stocks', '#equity'] },
+  { label: 'PPF / EPF Contribution', icon: 'shield', catMatch: 'PPF', tags: ['#ppf', '#tax-saving'] },
+  { label: 'Gold ETF / SGB', icon: 'coins', catMatch: 'Gold', tags: ['#gold', '#investment'] },
+  { label: 'Recurring Deposit (RD)', icon: 'piggy', catMatch: 'RD', tags: ['#rd', '#investment'] },
+  { label: 'NPS Tier 1', icon: 'shield', catMatch: 'NPS', tags: ['#nps', '#retirement'] }
 ];
 
 // Smart Past-Purchase Suggestion Engine (scans past days, weeks & months)
