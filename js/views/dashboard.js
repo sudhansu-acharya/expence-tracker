@@ -8,27 +8,20 @@ import { drawTrendChart, drawComparisonBarChart, renderCategoryDonutHtml } from 
 export function renderDashboardView(ctx) {
   const { state, data } = ctx;
   const settings = data.settings;
-  const balances = computeWalletBalances(data.wallets, data.transactions);
-
-  let liquidAssets = 0;
-  for (const w of data.wallets) {
-    const bal = balances.get(w.id) ?? 0;
-    if (w.type !== 'credit_card') {
-      liquidAssets += bal;
-    }
-  }
   const ccSummary = computeCreditCardSummary(data.wallets, data.transactions, data.credit_card_bills);
   const effectiveDues = ccSummary.effectiveDues;
   const totalPortfolioInvested = data.transactions
     .filter(tx => !tx.deletedAt && tx.type === 'investment')
     .reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
-  const netWorth = liquidAssets + totalPortfolioInvested - effectiveDues;
 
   const { start, end, label } = getPeriodBounds(state.dashPeriod, state.dashAnchor, state.customStart, state.customEnd);
   const periodTxs = data.transactions.filter(tx => {
+    if (tx.deletedAt) return false;
     const dt = new Date(tx.date);
     return dt >= start && dt <= end;
   });
+
+  const ccPeriodSummary = computeCreditCardSummary(data.wallets, periodTxs, data.credit_card_bills);
 
   let periodInflow = 0;
   let periodOutflow = 0;
@@ -58,6 +51,7 @@ export function renderDashboardView(ctx) {
       }
     }
   }
+  const periodNetFlow = periodInflow - periodOutflow;
 
   const catMap = new Map(data.categories.map(c => [c.id, c]));
   const donutSlices = [...catTotals.entries()]
@@ -167,25 +161,32 @@ export function renderDashboardView(ctx) {
 
         <div class="card">
           <div class="card-header" style="margin-bottom:6px">
-            <div class="card-title">${iconSvg('wallet')} Cash Flow &amp; Net Worth</div>
+            <div class="card-title">${iconSvg('wallet')} Cash Flow (${escHtml(label)})</div>
             <span class="chip chip-green">Self-Transfers Excluded</span>
           </div>
-          <div style="font-size:26px;font-weight:800;letter-spacing:-0.03em">${escHtml(formatMoney(netWorth, settings))} <span class="muted" style="font-weight:600">Net Worth</span></div>
+          <div style="font-size:26px;font-weight:800;letter-spacing:-0.03em;color:${periodNetFlow < 0 ? 'var(--red)' : 'var(--text-1)'}">
+            ${escHtml(formatMoney(periodNetFlow, settings, { showSign: periodNetFlow > 0 }))}
+            <span class="muted" style="font-weight:600">Net Cash Flow</span>
+          </div>
+          <div class="muted" style="margin-top:2px">
+            Inflow ${escHtml(formatMoney(periodInflow, settings))} • Outflow ${escHtml(formatMoney(periodOutflow, settings))}
+          </div>
           <div class="nw-grid">
             <div class="nw-box">
-              <div class="nw-box-label">Bank + UPI + Cash</div>
-              <div class="nw-box-val" style="color:var(--green)">${escHtml(formatMoney(liquidAssets, settings))}</div>
+              <div class="nw-box-label">Period Spent</div>
+              <div class="nw-box-val" style="color:var(--red)">${escHtml(formatMoney(periodOutflow, settings))}</div>
             </div>
             <div class="nw-box">
               <div class="nw-box-label">Investments</div>
-              <div class="nw-box-val" style="color:var(--purple)">${escHtml(formatMoney(totalPortfolioInvested, settings))}</div>
+              <div class="nw-box-val" style="color:var(--purple)">${escHtml(formatMoney(periodInvested, settings))}</div>
+              ${totalPortfolioInvested > periodInvested ? `<div class="muted" style="font-size:10.5px;margin-top:3px">Total ${escHtml(formatMoney(totalPortfolioInvested, settings))}</div>` : ''}
             </div>
             <div class="nw-box" style="cursor:pointer" data-action="drill-credit-card" title="View Credit Card swipes &amp; payments">
               <div class="nw-box-label">Credit Card Dues</div>
               <div class="nw-box-val" style="color:var(--red)">${escHtml(formatMoney(effectiveDues > 0 ? -effectiveDues : 0, settings))}</div>
-              ${(ccSummary.totalPaid > 0 || ccSummary.totalSwipes > 0) ? `
+              ${(ccPeriodSummary.totalPaid > 0 || ccPeriodSummary.totalSwipes > 0) ? `
                 <div class="muted" style="font-size:10.5px;margin-top:3px">
-                  ${ccSummary.totalPaid > 0 ? `Paid ${escHtml(formatMoney(ccSummary.totalPaid, settings))}` : `Spent ${escHtml(formatMoney(ccSummary.totalSwipes, settings))}`}
+                  ${ccPeriodSummary.totalPaid > 0 ? `Paid ${escHtml(formatMoney(ccPeriodSummary.totalPaid, settings))}` : `Spent ${escHtml(formatMoney(ccPeriodSummary.totalSwipes, settings))}`}
                 </div>` : ''}
             </div>
           </div>
