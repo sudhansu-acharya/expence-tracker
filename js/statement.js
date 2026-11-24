@@ -558,8 +558,10 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
   const results = [];
   const seenHashes = new Set();
   const upiWallet = context.wallets.find(w => w.type === 'upi') || context.wallets.find(w => w.type === 'bank') || context.wallets[0];
+  const bankWallet = context.wallets.find(w => w.type === 'bank') || upiWallet;
 
   const dateLineRe = /\b(\d{1,2}[\s\-\/](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*[\s\-\/,]+\d{2,4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{2,4}|\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4})\b/i;
+  const rowStartDateRe = /^(\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4}|\d{1,2}[\s\-\/](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*[\s\-\/]\d{2,4})\b/i;
   // Matches anywhere in a reconstructed PDF row: e.g. "03 May, 2026 Paid to Flipkart Payments ₹182"
   const gpayActionRe = /\b(Paid\s+to|Sent\s+to|Received\s+from|Refund\s+from|Payment\s+to|Transfer\s+to|Cashback\s+from)\s+(.+)$/i;
   const takeoutLineRe = /(Paid|Sent|Received)\s+(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)\s+(?:to|from)\s+(.+?)(?:\s+using\s+(.+))?$/i;
@@ -567,6 +569,7 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
   const trailingAmtRe = /(?:₹|Rs\.?|INR)?\s*([\d,]+(?:\.\d{1,2})?)\s*$/;
 
   let currentDateIso = nowIso();
+  let prevBankBalance = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -754,6 +757,125 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
         isSelfTransfer: selfCheck.isSelfTransfer,
         selfTransferReason: selfCheck.reason
       });
+      continue;
+    }
+
+    // Pattern D: SBI & Indian Bank Tabular Account Statement PDF rows
+    // Columns: Value Date | Post Date | Details (multi-line) | Ref/Cheque | Debit | Credit | Balance
+    // Example: "01/04/2026 01/04/2026 WDL TFR 50.00 - 24,625.83" + wrapped "UPI/DR/609188506111/SHIVA/YESB/..."
+    const startDateMatch = line.match(rowStartDateRe);
+    if (startDateMatch && !isDateRangeSummary && !/\b(?:value\s+date|post\s+date|opening\s+balance|closing\s+balance|statement\s+period)\b/i.test(line)) {
+      const rowDateIso = parseFlexibleDate(startDateMatch[1]);
+      let debitAmt = null;
+      let creditAmt = null;
+      let balanceAmt = null;
+      let genericAmt = null;
+
+      const debitWithDash = line.match(/(\d[\d,]*\.\d{2})\s+[-–]\s+(\d[\d,]*\.\d{2})\s*$/);
+      const creditWithDash = line.match(/[-–]\s+(\d[\d,]*\.\d{2})\s+(\d[\d,]*\.\d{2})\s*$/);
+      const twoDecimals = line.match(/(\d[\d,]*\.\d{2})\s+(\d[\d,]*\.\d{2})\s*$/);
+
+      if (debitWithDash) {
+        debitAmt = parseAmt(debitWithDash[1]);
+        balanceAmt = parseAmt(debitWithDash[2]);
+      } else if (creditWithDash) {
+        creditAmt = parseAmt(creditWithDash[1]);
+        balanceAmt = parseAmt(creditWithDash[2]);
+      } else if (twoDecimals) {
+        genericAmt = parseAmt(twoDecimals[1]);
+        balanceAmt = parseAmt(twoDecimals[2]);
+      }
+
+      const amount = debitAmt || creditAmt || genericAmt;
+      if (amount) {
+        // Collect narration lines: optional action prefix immediately above (e.g. "WDL TFR") + current line + up to 5 wrapped lines below
+        const descParts = [];
+        const prevLine = i > 0 ? lines[i - 1] : '';
+        if (prevLine && /^(?:WDL\s+TFR|DEP\s+TFR|TO\s+TRANSFER|BY\s+TRANSFER|ATM\s+WDL|INB|NEFT|IMPS|RTGS|POS)\b/i.test(prevLine) && !rowStartDateRe.test(prevLine)) {
+          descParts.push(prevLine);
+        }
+
+        const strippedMain = line
+          .replace(/^(\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4}\s*){1,2}/, '')
+          .replace(/^(\d{1,2}[\s\-\/](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*[\s\-\/]\d{2,4}\s*){1,2}/i, '')
+          .replace(/(\d[\d,]*\.\d{2}\s+[-–]\s+\d[\d,]*\.\d{2}|[-–]\s+\d[\d,]*\.\d{2}\s+\d[\d,]*\.\d{2}|\d[\d,]*\.\d{2}\s+\d[\d,]*\.\d{2})\s*$/, '')
+          .trim();
+        if (strippedMain) descParts.push(strippedMain);
+
+        for (let j = 1; j <= 5 && (i + j) < lines.length; j++) {
+          const nxt = lines[i + j];
+          if (rowStartDateRe.test(nxt)) break;
+          if (/^(?:Page\s+no\.|Value\s+Date|Post\s+Date|Total|Closing\s+Balance|Please\s+note)/i.test(nxt)) break;
+          if (/^(?:WDL\s+TFR|DEP\s+TFR|TO\s+TRANSFER|BY\s+TRANSFER)\b/i.test(nxt) && (i + j + 1 < lines.length) && rowStartDateRe.test(lines[i + j + 1])) {
+            // Belongs to the next transaction row
+            break;
+          }
+          descParts.push(nxt);
+        }
+
+        const fullNarration = descParts.join(' ').replace(/\s+/g, ' ').trim();
+        const compactNarration = descParts.join('').replace(/\s+/g, ' ');
+
+        // Extract SBI / Indian Bank UPI narration: UPI/DR/<ref>/<MERCHANT>/<BANK>/<VPA>/UPI
+        const upiMatch =
+          fullNarration.match(/UPI\s*\/\s*(DR|CR)\s*\/\s*(\d+)\s*\/\s*([^\/]+?)\s*\//i) ||
+          compactNarration.match(/UPI\/(DR|CR)\/(\d+)\/([^\/]+?)\//i);
+
+        let isCredit = Boolean(creditAmt);
+        if (!debitAmt && !creditAmt) {
+          if (upiMatch) {
+            isCredit = upiMatch[1].toUpperCase() === 'CR';
+          } else if (/\b(?:DEP\s+TFR|BY\s+TRANSFER|CREDIT|SALARY|INTEREST|REFUND|CASHBACK)\b/i.test(fullNarration) && !/\b(?:WDL\s+TFR|TO\s+TRANSFER|DEBIT)\b/i.test(fullNarration)) {
+            isCredit = true;
+          } else if (prevBankBalance !== null && balanceAmt !== null) {
+            isCredit = balanceAmt > prevBankBalance;
+          }
+        }
+        if (balanceAmt !== null) prevBankBalance = balanceAmt;
+
+        const rawType = isCredit ? 'income' : 'expense';
+        const upiRef = upiMatch?.[2] || '';
+        let merchant = upiMatch?.[3]?.trim() || '';
+        if (!merchant) {
+          merchant = fullNarration
+            .replace(/\b(?:WDL\s+TFR|DEP\s+TFR|TO\s+TRANSFER|BY\s+TRANSFER)\b/gi, '')
+            .replace(/\b\d{10,}\b/g, '')
+            .replace(/\bAT\s+\d{4,6}\b.*$/i, '')
+            .replace(/[|•\-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        }
+        merchant = (merchant || (isCredit ? 'Bank Credit' : 'Bank Debit')).slice(0, 64);
+
+        const sourceHash = await sha256Hex(
+          upiRef
+            ? `sbi-upi|${upiRef}|${amount}`
+            : `bank-tbl|${rawType}|${amount}|${rowDateIso.slice(0, 10)}|${balanceAmt ?? ''}|${merchant.toLowerCase()}`
+        );
+        if (!seenHashes.has(sourceHash)) {
+          seenHashes.add(sourceHash);
+          const { finalType, categoryId, ruleHit, selfCheck } = classifyTransaction(
+            { rawType, merchant, note: fullNarration, amount, dateIso: rowDateIso, walletId: bankWallet?.id },
+            context
+          );
+          results.push({
+            kind: 'transaction',
+            sourceHash,
+            type: finalType,
+            amount,
+            currency: 'INR',
+            date: rowDateIso,
+            walletId: bankWallet?.id || '',
+            categoryId,
+            merchant,
+            note: fullNarration.slice(0, 180),
+            tags: [...new Set([...(ruleHit?.tags || []), sourceTag, '#bank-statement'])],
+            source: 'bank_statement',
+            isSelfTransfer: selfCheck.isSelfTransfer,
+            selfTransferReason: selfCheck.reason
+          });
+        }
+      }
     }
   }
 
