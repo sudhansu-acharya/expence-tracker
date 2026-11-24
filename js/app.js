@@ -15,6 +15,7 @@ import { matchCategorizationRule, detectSelfTransfer, getPurchaseSuggestions, GR
 import {
   parseMessageOnDevice, AccountAggregatorAdapter, SAMPLE_SMS_LIBRARY
 } from './parser.js';
+import { importStatementFile } from './statement.js';
 import {
   evaluateBudgetAlerts, detectRecurringCandidates, requestNotificationPermission,
   checkAndFireExpenseReminder, sendLocalNotification, buildReminderIcs
@@ -56,6 +57,7 @@ const appState = {
   smsDraft: '',
   pendingSharedText: '',
   autoSaveShared: false,
+  statementAutoAdd: true,
   parseQueue: [],
   deferredInstallPrompt: null,
   modalState: null
@@ -1439,6 +1441,52 @@ document.addEventListener('change', async e => {
       renderTransactionModal();
     } else if (t.dataset.splitCat !== undefined && appState.modalState) {
       appState.modalState.splits[Number(t.dataset.splitCat)].categoryId = t.value;
+    } else if (t.id === 'statementAutoAddToggle') {
+      appState.statementAutoAdd = Boolean(t.checked);
+    } else if (t.id === 'statementImportFile' && t.files?.length) {
+      const files = [...t.files];
+      const ctx = {
+        wallets: vaultData.wallets,
+        categories: vaultData.categories,
+        rules: vaultData.categorization_rules,
+        existingTxs: vaultData.transactions
+      };
+      const allParsed = [];
+      for (const file of files) {
+        const rows = await importStatementFile(file, ctx);
+        allParsed.push(...rows);
+      }
+
+      if (!allParsed.length) {
+        showToast('No transactions detected in the selected document(s)');
+        t.value = '';
+        return;
+      }
+
+      if (appState.statementAutoAdd) {
+        const existingHashes = new Set(vaultData.transactions.map(x => x.sourceHash).filter(Boolean));
+        let added = 0;
+        let skipped = 0;
+        for (const item of allParsed) {
+          if (item.sourceHash && existingHashes.has(item.sourceHash)) {
+            skipped++;
+            continue;
+          }
+          await approveParsedItem(item);
+          if (item.sourceHash) existingHashes.add(item.sourceHash);
+          added++;
+        }
+        await refreshVaultData();
+        await evaluateBudgetAlerts(vaultData.budgets, vaultData.transactions, vaultData.settings, showToast);
+        await refreshVaultData();
+        renderApp();
+        showToast(`Auto-added ${added} transaction(s)${skipped ? ` (${skipped} duplicate(s) skipped)` : ''}`);
+      } else {
+        appState.parseQueue.push(...allParsed);
+        renderApp();
+        showToast(`Parsed ${allParsed.length} transaction(s) into Review Queue`);
+      }
+      t.value = '';
     } else if (t.id === 'aaImportFile' && t.files?.[0]) {
       const file = t.files[0];
       const text = await file.text();

@@ -108,6 +108,27 @@ export function renderCaptureView(ctx) {
     <div class="stack">
       ${androidBridgeBanner}
 
+      <!-- Google Pay / PhonePe / Bank Statement Document Importer (PDF, CSV, HTML, JSON, TXT) -->
+      <div class="card" id="statementImportCard">
+        <div class="card-header">
+          <div class="card-title">${iconSvg('upload')} Import GPay / Bank Statement (PDF, CSV, HTML, JSON)</div>
+          <span class="chip chip-green">100% Offline On-Device</span>
+        </div>
+        <p class="muted" style="margin-bottom:10px;line-height:1.45">
+          Upload your <strong>Google Pay (GPay) PDF statement</strong>, Google Takeout HTML/JSON, PhonePe/Paytm/Bank CSV, or statement text. Automatically extracts transactions, auto-categorizes merchants &amp; investments (SIP/FD), skips duplicates, and excludes self-transfers — zero data leaves your device.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+          <label class="btn-primary" style="cursor:pointer">
+            ${iconSvg('upload')} Upload Statement (PDF / CSV / HTML / JSON / TXT)
+            <input type="file" id="statementImportFile" accept=".pdf,.csv,.tsv,.json,.html,.htm,.txt,application/pdf,text/csv,application/json,text/html,text/plain" multiple class="hidden" />
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;cursor:pointer">
+            <input type="checkbox" id="statementAutoAddToggle" ${state.statementAutoAdd ? 'checked' : ''} />
+            Auto-add directly to Vault (skip queue)
+          </label>
+        </div>
+      </div>
+
       <!-- On-Device SMS / UPI / Credit Card Bill Parser -->
       <div class="card">
         <div class="card-header">
