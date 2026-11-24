@@ -626,20 +626,13 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
       const rawType = isCredit ? 'income' : 'expense';
       let tail = am[2].trim();
 
-      // Extract amount from same line (with ₹/Rs. or trailing numeric column)
+      // 1. Prefer explicit currency-prefixed amount (₹ / Rs. / INR) on the same line
       let amount = parseAmt(tail.match(amtRe)?.[1]);
       if (amount) {
         tail = tail.replace(amtRe, '').trim();
-      } else {
-        const tr = tail.match(/\s+([\d,]+(?:\.\d{1,2})?)$/);
-        if (tr && parseAmt(tr[1])) {
-          amount = parseAmt(tr[1]);
-          tail = tail.slice(0, tr.index).trim();
-        }
       }
-      let merchant = tail.replace(/\s+/g, ' ').trim().slice(0, 64);
 
-      // Look ahead up to 4 lines for amount (if not on same line), UPI Transaction ID, and Paid by Bank / UPI Lite
+      // 2. Look ahead up to 4 lines for explicit ₹/Rs. amount, UPI Transaction ID, and Paid by Bank / UPI Lite
       let upiId = '';
       let last4 = '';
       let blockDateIso = currentDateIso;
@@ -652,14 +645,37 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
         const nd = nxt.match(dateLineRe);
         if (nd && !dm) blockDateIso = parseFlexibleDate(nd[1]);
         if (!amount) {
-          const na = nxt.match(amtRe) || (/^(?:₹|Rs\.?|INR)?\s*[\d,]+(?:\.\d{1,2})?$/.test(nxt) ? nxt.match(trailingAmtRe) : null);
-          if (na) amount = parseAmt(na[1]);
+          const explicitAmt = nxt.match(amtRe);
+          if (explicitAmt) {
+            amount = parseAmt(explicitAmt[1]);
+          } else if (/^(?:₹|Rs\.?|INR)?\s*[\d,]+(?:\.\d{1,2})?$/.test(nxt) && !/^\d{4}$/.test(nxt.trim())) {
+            amount = parseAmt(nxt.match(trailingAmtRe)?.[1]);
+          }
         }
         const uid = nxt.match(/UPI\s*Transaction\s*ID[:\s]*([A-Za-z0-9]+)/i);
         if (uid) upiId = uid[1];
         const l4 = nxt.match(/(?:Paid\s+by|Credited\s+to|Bank|UPI\s*Lite|Card).*?(\d{4})/i);
         if (l4) last4 = l4[1];
       }
+
+      // 3. Only fall back to a trailing bare number on the action line if NO explicit ₹ amount was found,
+      //    AND never mistake a 4-digit bank/card account suffix (e.g. "HDFC Bank 3588") for an amount!
+      if (!amount) {
+        const tr = tail.match(/\s+([\d,]+(?:\.\d{1,2})?)$/);
+        if (tr) {
+          const beforeNum = tail.slice(0, tr.index).trim();
+          const rawNum = tr[1];
+          const looksLikeAccountSuffix =
+            /^\d{4}$/.test(rawNum) &&
+            /\b(?:bank|a\/c|ac|acct|account|card|cards|upi|lite|xx|\*\*|••)\b/i.test(beforeNum);
+          if (!looksLikeAccountSuffix && parseAmt(rawNum)) {
+            amount = parseAmt(rawNum);
+            tail = beforeNum;
+          }
+        }
+      }
+
+      let merchant = tail.replace(/\s+/g, ' ').trim().slice(0, 64);
 
       if (!amount) continue;
       if (!merchant) merchant = isCredit ? 'GPay Receipt' : 'GPay Payment';
