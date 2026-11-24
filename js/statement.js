@@ -223,84 +223,118 @@ function decodePdfHexWithCMap(hex, cmapObj) {
   return decodePdfBytesWithCMap(bytes, cmapObj);
 }
 
+function multiplyAffine(m1, m2) {
+  // PDF CTM concatenation: newCTM = m2 * m1 (m2 is the new cm matrix, m1 is current CTM)
+  return [
+    m2[0] * m1[0] + m2[1] * m1[2],
+    m2[0] * m1[1] + m2[1] * m1[3],
+    m2[2] * m1[0] + m2[3] * m1[2],
+    m2[2] * m1[1] + m2[3] * m1[3],
+    m2[4] * m1[0] + m2[5] * m1[2] + m1[4],
+    m2[4] * m1[1] + m2[5] * m1[3] + m1[5]
+  ];
+}
+
+function applyAffine(m, x, y) {
+  return [
+    m[0] * x + m[2] * y + m[4],
+    m[1] * x + m[3] * y + m[5]
+  ];
+}
+
 function extractLinesFromContentStream(streamText, fontCMaps) {
   const fragments = [];
   let activeFont = null;
-  let curX = 0;
-  let curY = 0;
+  let ctm = [1, 0, 0, 1, 0, 0];
+  const ctmStack = [];
+  let inText = false;
+  let tx = 0;
+  let ty = 0;
   let lineOrder = 0;
 
-  const pushText = (txt, x, y) => {
+  const pushText = txt => {
     const cleaned = txt.replace(/\u0000/g, '');
     if (!cleaned) return;
-    fragments.push({ text: cleaned, x, y, order: lineOrder++ });
+    const [gx, gy] = applyAffine(ctm, tx, ty);
+    fragments.push({ text: cleaned, x: gx, y: gy, order: lineOrder++ });
+    tx += cleaned.length * 4;
   };
 
-  // Match font switches (/F1 12 Tf) and BT...ET blocks
-  const btRe = /BT([\s\S]*?)ET/g;
-  let bt;
-  while ((bt = btRe.exec(streamText)) !== null) {
-    const block = bt[1];
-    let tx = 0;
-    let ty = 0;
+  // Single-pass stream tokenizer supporting q/Q/cm graphics state + BT/ET/Tf/Tm/Td/TD/T*/Tj/TJ/'/"
+  const opRe = /(?<![A-Za-z0-9_\/])(q|Q|BT|ET|T\*)(?![A-Za-z0-9_])|([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+(cm|Tm)(?![A-Za-z0-9_])|\/([A-Za-z0-9_.\-+]+)\s+[\d.\-]+\s+Tf(?![A-Za-z0-9_])|([\-0-9.]+)\s+([\-0-9.]+)\s+(Td|TD)(?![A-Za-z0-9_])|(\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>|\[(?:[\s\S]*?)\])\s*(Tj|TJ|'|")(?![A-Za-z0-9_])/g;
 
-    const tokenRe = /\/([A-Za-z0-9_.\-+]+)\s+[\d.\-]+\s+Tf|([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+Tm|([\-0-9.]+)\s+([\-0-9.]+)\s+(Td|TD)|T\*|(\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>|\[(?:[\s\S]*?)\])\s*(Tj|TJ|'|")/g;
-    let tok;
-    while ((tok = tokenRe.exec(block)) !== null) {
-      if (tok[1]) {
-        activeFont = tok[1];
-        continue;
-      }
-      if (tok[6] !== undefined) {
-        tx = parseFloat(tok[6]) || 0;
-        ty = parseFloat(tok[7]) || 0;
-        curX = tx;
-        curY = ty;
-        continue;
-      }
-      if (tok[10] === 'Td' || tok[10] === 'TD') {
-        tx += parseFloat(tok[8]) || 0;
-        ty += parseFloat(tok[9]) || 0;
-        curX = tx;
-        curY = ty;
-        continue;
-      }
-      if (tok[0] === 'T*') {
+  let tok;
+  while ((tok = opRe.exec(streamText)) !== null) {
+    if (tok[1]) {
+      const kw = tok[1];
+      if (kw === 'q') {
+        ctmStack.push([...ctm]);
+      } else if (kw === 'Q') {
+        if (ctmStack.length) ctm = ctmStack.pop();
+      } else if (kw === 'BT') {
+        inText = true;
+        tx = 0;
+        ty = 0;
+      } else if (kw === 'ET') {
+        inText = false;
+      } else if (kw === 'T*' && inText) {
         ty -= 12;
-        curY = ty;
-        continue;
       }
-
-      const operand = tok[11];
-      const kind = tok[12];
-      if (!operand || !kind) continue;
-
-      const cmapObj = (activeFont && fontCMaps.get(activeFont)) || fontCMaps.get('__default__') || null;
-      let piece = '';
-
-      if (kind === 'TJ' && operand.startsWith('[')) {
-        const innerRe = /\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>|[\-0-9.]+/g;
-        let part;
-        while ((part = innerRe.exec(operand.slice(1, -1))) !== null) {
-          const p = part[0];
-          if (p.startsWith('(')) piece += decodePdfBytesWithCMap(decodePdfLiteralRaw(p.slice(1, -1)), cmapObj);
-          else if (p.startsWith('<')) piece += decodePdfHexWithCMap(p.slice(1, -1), cmapObj);
-          else if (parseFloat(p) < -180) piece += ' ';
-        }
-      } else {
-        if (operand.startsWith('(')) piece += decodePdfBytesWithCMap(decodePdfLiteralRaw(operand.slice(1, -1)), cmapObj);
-        else if (operand.startsWith('<')) piece += decodePdfHexWithCMap(operand.slice(1, -1), cmapObj);
-        if (kind === "'" || kind === '"') {
-          ty -= 12;
-          curY = ty;
-        }
-      }
-
-      if (piece) {
-        pushText(piece, curX, curY);
-        curX += piece.length * 4;
-      }
+      continue;
     }
+
+    if (tok[8]) {
+      const m = [
+        parseFloat(tok[2]) || 0,
+        parseFloat(tok[3]) || 0,
+        parseFloat(tok[4]) || 0,
+        parseFloat(tok[5]) || 0,
+        parseFloat(tok[6]) || 0,
+        parseFloat(tok[7]) || 0
+      ];
+      if (tok[8] === 'cm') {
+        ctm = multiplyAffine(ctm, m);
+      } else if (tok[8] === 'Tm') {
+        tx = m[4];
+        ty = m[5];
+      }
+      continue;
+    }
+
+    if (tok[9]) {
+      activeFont = tok[9];
+      continue;
+    }
+
+    if (tok[12]) {
+      tx += parseFloat(tok[10]) || 0;
+      ty += parseFloat(tok[11]) || 0;
+      continue;
+    }
+
+    const operand = tok[13];
+    const kind = tok[14];
+    if (!operand || !kind) continue;
+
+    const cmapObj = (activeFont && fontCMaps.get(activeFont)) || fontCMaps.get('__default__') || null;
+    let piece = '';
+
+    if (kind === 'TJ' && operand.startsWith('[')) {
+      const innerRe = /\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>|[\-0-9.]+/g;
+      let part;
+      while ((part = innerRe.exec(operand.slice(1, -1))) !== null) {
+        const p = part[0];
+        if (p.startsWith('(')) piece += decodePdfBytesWithCMap(decodePdfLiteralRaw(p.slice(1, -1)), cmapObj);
+        else if (p.startsWith('<')) piece += decodePdfHexWithCMap(p.slice(1, -1), cmapObj);
+        else if (parseFloat(p) < -180) piece += ' ';
+      }
+    } else {
+      if (operand.startsWith('(')) piece += decodePdfBytesWithCMap(decodePdfLiteralRaw(operand.slice(1, -1)), cmapObj);
+      else if (operand.startsWith('<')) piece += decodePdfHexWithCMap(operand.slice(1, -1), cmapObj);
+      if (kind === "'" || kind === '"') ty -= 12;
+    }
+
+    if (piece) pushText(piece);
   }
 
   if (!fragments.length) return [];
@@ -664,7 +698,9 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
     }
 
     // Pattern C: Generic single-line statement row containing a Date + ₹/Rs amount (PhonePe / Paytm / Bank PDF)
-    if (dm && amtRe.test(line)) {
+    // Skip statement-period summary headers like "01 May 2026 - 31 October 2026 ₹3,72,768.91 ₹3,288"
+    const isDateRangeSummary = /\d{1,2}[\s\-\/](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*[\s\-\/,]+\d{2,4}\s*(?:-|to|–)\s*\d{1,2}[\s\-\/](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)/i.test(line);
+    if (dm && amtRe.test(line) && !isDateRangeSummary && !/\bstatement\s+period\b/i.test(line)) {
       const amount = parseAmt(line.match(amtRe)?.[1]);
       if (!amount) continue;
       const isCredit = /\b(?:cr|credit|credited|received|refund|cashback|deposit)\b/i.test(line)
