@@ -353,6 +353,10 @@
 
 /* Net Worth Grid */
 .nw-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.nw-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 700px) {
+  .nw-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+}
 .nw-box {
   background: var(--glass-bg-subtle);
   border: 1px solid var(--glass-border);

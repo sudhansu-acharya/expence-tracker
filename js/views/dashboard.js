@@ -171,7 +171,7 @@ export function renderDashboardView(ctx) {
           <div class="muted" style="margin-top:2px">
             Inflow ${escHtml(formatMoney(periodInflow, settings))} • Outflow ${escHtml(formatMoney(periodOutflow, settings))}
           </div>
-          <div class="nw-grid">
+          <div class="nw-grid cols-4">
             <div class="nw-box">
               <div class="nw-box-label">Period Spent</div>
               <div class="nw-box-val" style="color:var(--red)">${escHtml(formatMoney(periodOutflow, settings))}</div>
@@ -184,10 +184,14 @@ export function renderDashboardView(ctx) {
             <div class="nw-box" style="cursor:pointer" data-action="drill-credit-card" title="View Credit Card swipes &amp; payments">
               <div class="nw-box-label">Credit Card Dues</div>
               <div class="nw-box-val" style="color:var(--red)">${escHtml(formatMoney(effectiveDues > 0 ? -effectiveDues : 0, settings))}</div>
-              ${(ccPeriodSummary.totalPaid > 0 || ccPeriodSummary.totalSwipes > 0) ? `
-                <div class="muted" style="font-size:10.5px;margin-top:3px">
-                  ${ccPeriodSummary.totalPaid > 0 ? `Paid ${escHtml(formatMoney(ccPeriodSummary.totalPaid, settings))}` : `Spent ${escHtml(formatMoney(ccPeriodSummary.totalSwipes, settings))}`}
-                </div>` : ''}
+              ${ccPeriodSummary.totalSwipes > 0 ? `<div class="muted" style="font-size:10.5px;margin-top:3px">Spent ${escHtml(formatMoney(ccPeriodSummary.totalSwipes, settings))}</div>` : ''}
+            </div>
+            <div class="nw-box" id="ccDuesPaidBox" style="cursor:pointer" data-action="drill-credit-card" title="View Credit Card dues paid in ${escHtml(label)}">
+              <div class="nw-box-label">CC Dues Paid</div>
+              <div class="nw-box-val" style="color:var(--green)">${escHtml(formatMoney(ccPeriodSummary.totalPaid, settings))}</div>
+              <div class="muted" style="font-size:10.5px;margin-top:3px">
+                ${ccPeriodSummary.paidCount > 0 ? `${ccPeriodSummary.paidCount} payment${ccPeriodSummary.paidCount > 1 ? 's' : ''}` : escHtml(label)}
+              </div>
             </div>
           </div>
         </div>

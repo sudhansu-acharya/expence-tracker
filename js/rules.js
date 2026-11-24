@@ -85,9 +85,19 @@ export function detectSelfTransfer({ type, merchant = '', note = '', walletId, t
 export function isCreditCardPaymentTx(tx, ccWalletIds) {
   if (!tx || tx.deletedAt) return false;
   if (tx.type === 'transfer' && tx.toWalletId && ccWalletIds.has(tx.toWalletId)) return true;
-  if (Array.isArray(tx.tags) && tx.tags.some(t => /^#cc-?bill$/i.test(t))) return true;
+  if (Array.isArray(tx.tags) && tx.tags.some(t => /^#(?:cc-?bill|cc-?pay|credit-?card)/i.test(t))) return true;
+  // Normal expense swipes ON a credit card wallet itself are spending, not bill payments
+  if (tx.type === 'expense' && ccWalletIds.has(tx.walletId)) return false;
+  if (tx.type === 'income') return false;
   const text = `${tx.merchant || ''} ${tx.note || ''}`.toLowerCase();
-  return /\bcredit\s+card\s+(?:bill\s+)?pay|\bcc\s+bill\b|\bpaid\b.*\bcredit\s+card\b/.test(text);
+  return (
+    /\bcredit\s*card\b/.test(text) ||
+    /\bcc\s*(?:bill|pay|payment|due|autopay)\b/.test(text) ||
+    /\bcard\s*(?:bill|payment|due)\b/.test(text) ||
+    /\b(?:cred\.club|cred\s*pay|credapp|dreamplug)\b/.test(text) ||
+    /(?:^|[\s\/\-_@])cred(?:$|[\s\/\-_@])/.test(text) ||
+    /\b(?:sbi\s*card|sbicard|hdfc\s*card|icici\s*card|axis\s*card|kotak\s*card|amex|onecard|rbl\s*card|indusind\s*card|idfc\s*card)\b/.test(text)
+  );
 }
 
 export function computeCreditCardSummary(wallets = [], transactions = [], ccBills = []) {
@@ -107,6 +117,7 @@ export function computeCreditCardSummary(wallets = [], transactions = [], ccBill
 
   let totalSwipes = 0;
   let totalPaid = 0;
+  let paidCount = 0;
   for (const tx of transactions) {
     if (tx.deletedAt) continue;
     const amt = Number(tx.amount) || 0;
@@ -114,6 +125,7 @@ export function computeCreditCardSummary(wallets = [], transactions = [], ccBill
       totalSwipes += amt;
     } else if (isCreditCardPaymentTx(tx, ccWalletIds)) {
       totalPaid += amt;
+      paidCount += 1;
     }
   }
 
@@ -123,7 +135,8 @@ export function computeCreditCardSummary(wallets = [], transactions = [], ccBill
     unpaidBillSum,
     effectiveDues: Math.max(ledgerDues, unpaidBillSum),
     totalSwipes,
-    totalPaid
+    totalPaid,
+    paidCount
   };
 }
 
