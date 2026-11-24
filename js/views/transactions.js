@@ -1,5 +1,6 @@
 // Phase 1: Searchable, Filterable Transactions List + Category & Wallet Manager
 import { escHtml, formatMoney } from '../format.js';
+import { isCreditCardPaymentTx } from '../rules.js';
 import { renderCompactTxRow } from './dashboard.js';
 
 export function renderTransactionsView(ctx) {
@@ -7,6 +8,7 @@ export function renderTransactionsView(ctx) {
   const settings = data.settings;
   const catMap = new Map(data.categories.map(c => [c.id, c]));
   const walletMap = new Map(data.wallets.map(w => [w.id, w]));
+  const ccWalletIds = new Set(data.wallets.filter(w => w.type === 'credit_card').map(w => w.id));
 
   const q = (state.txSearch || '').toLowerCase().trim();
   const filtered = [...data.transactions]
@@ -14,7 +16,11 @@ export function renderTransactionsView(ctx) {
       if (state.txTypeFilter !== 'all') {
         if (state.txTypeFilter === 'self' && !tx.isSelfTransfer) return false;
         else if (state.txTypeFilter === 'split' && !(Array.isArray(tx.splits) && tx.splits.length)) return false;
-        else if (['expense', 'income', 'investment', 'transfer'].includes(state.txTypeFilter) && tx.type !== state.txTypeFilter) return false;
+        else if (state.txTypeFilter === 'credit_card') {
+          const isCcSwipe = ccWalletIds.has(tx.walletId);
+          const isCcPay = isCreditCardPaymentTx(tx, ccWalletIds);
+          if (!isCcSwipe && !isCcPay) return false;
+        } else if (['expense', 'income', 'investment', 'transfer'].includes(state.txTypeFilter) && tx.type !== state.txTypeFilter) return false;
       }
       if (state.txCategoryFilter && tx.categoryId !== state.txCategoryFilter) {
         const inSplit = Array.isArray(tx.splits) && tx.splits.some(s => s.categoryId === state.txCategoryFilter);
@@ -56,6 +62,7 @@ export function renderTransactionsView(ctx) {
             ['expense', 'Expenses'],
             ['income', 'Income'],
             ['investment', 'Investments'],
+            ['credit_card', 'Credit Card'],
             ['self', 'Self-Transfers'],
             ['split', 'Split Bills']
           ].map(([k, lbl]) => `<button class="pill-btn ${state.txTypeFilter === k ? 'active' : ''}" data-action="set-tx-filter" data-filter="${k}">${lbl}</button>`).join('')}

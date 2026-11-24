@@ -1,7 +1,7 @@
 // Phase 2: Daily, Weekly, Monthly & Custom Graphical Dashboards + Safe-to-Spend & Net Worth Snapshot
 import { iconSvg } from '../icons.js';
 import { formatMoney, escHtml, getPeriodBounds, formatShortDate } from '../format.js';
-import { computeWalletBalances, expandCategoryAllocations, getPurchaseSuggestions } from '../rules.js';
+import { computeWalletBalances, expandCategoryAllocations, getPurchaseSuggestions, computeCreditCardSummary } from '../rules.js';
 import { computeSafeToSpend, getActiveCreditCardReminders, getExpenseReminderDueInfo } from '../reminders.js';
 import { drawTrendChart, drawComparisonBarChart, renderCategoryDonutHtml } from '../charts.js';
 
@@ -11,20 +11,14 @@ export function renderDashboardView(ctx) {
   const balances = computeWalletBalances(data.wallets, data.transactions);
 
   let liquidAssets = 0;
-  let creditDues = 0;
   for (const w of data.wallets) {
     const bal = balances.get(w.id) ?? 0;
-    if (w.type === 'credit_card') {
-      if (bal < 0) creditDues += Math.abs(bal);
-    } else {
+    if (w.type !== 'credit_card') {
       liquidAssets += bal;
     }
   }
-  // Include unpaid SMS-detected credit card bills if higher than ledger card balance
-  const unpaidBillSum = data.credit_card_bills
-    .filter(b => b.status !== 'paid')
-    .reduce((s, b) => s + (Number(b.totalDue) || 0), 0);
-  const effectiveDues = Math.max(creditDues, unpaidBillSum);
+  const ccSummary = computeCreditCardSummary(data.wallets, data.transactions, data.credit_card_bills);
+  const effectiveDues = ccSummary.effectiveDues;
   const totalPortfolioInvested = data.transactions
     .filter(tx => !tx.deletedAt && tx.type === 'investment')
     .reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
@@ -186,9 +180,13 @@ export function renderDashboardView(ctx) {
               <div class="nw-box-label">Investments</div>
               <div class="nw-box-val" style="color:var(--purple)">${escHtml(formatMoney(totalPortfolioInvested, settings))}</div>
             </div>
-            <div class="nw-box">
+            <div class="nw-box" style="cursor:pointer" data-action="drill-credit-card" title="View Credit Card swipes &amp; payments">
               <div class="nw-box-label">Credit Card Dues</div>
-              <div class="nw-box-val" style="color:var(--red)">${escHtml(formatMoney(-effectiveDues, settings))}</div>
+              <div class="nw-box-val" style="color:var(--red)">${escHtml(formatMoney(effectiveDues > 0 ? -effectiveDues : 0, settings))}</div>
+              ${(ccSummary.totalPaid > 0 || ccSummary.totalSwipes > 0) ? `
+                <div class="muted" style="font-size:10.5px;margin-top:3px">
+                  ${ccSummary.totalPaid > 0 ? `Paid ${escHtml(formatMoney(ccSummary.totalPaid, settings))}` : `Spent ${escHtml(formatMoney(ccSummary.totalSwipes, settings))}`}
+                </div>` : ''}
             </div>
           </div>
         </div>

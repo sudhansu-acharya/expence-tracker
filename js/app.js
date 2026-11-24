@@ -553,6 +553,10 @@ async function handleSaveTransaction() {
     date: dateIso
   }, vaultData.wallets, vaultData.transactions);
 
+  const resolvedToWalletId = m.type === 'transfer'
+    ? m.toWalletId
+    : (selfCheck.isSelfTransfer ? (selfCheck.suggestedToWalletId || null) : null);
+
   const txRecord = {
     id: m.id || undefined,
     type: selfCheck.isSelfTransfer ? 'transfer' : m.type,
@@ -560,8 +564,8 @@ async function handleSaveTransaction() {
     currency: vaultData.settings.defaultCurrency || 'INR',
     date: dateIso,
     walletId: m.walletId,
-    toWalletId: m.type === 'transfer' ? m.toWalletId : null,
-    categoryId: m.type === 'transfer' ? null : (splits ? splits[0].categoryId : m.categoryId),
+    toWalletId: resolvedToWalletId,
+    categoryId: (m.type === 'transfer' || selfCheck.isSelfTransfer) ? null : (splits ? splits[0].categoryId : m.categoryId),
     splits,
     tags,
     merchant: m.merchant.trim() || (vaultData.categories.find(c => c.id === m.categoryId)?.name || 'Transaction'),
@@ -793,6 +797,10 @@ document.addEventListener('click', async e => {
       renderApp();
     } else if (action === 'drill-tag') {
       appState.txTagFilter = btn.dataset.tag;
+      appState.screen = 'transactions';
+      renderApp();
+    } else if (action === 'drill-credit-card') {
+      appState.txTypeFilter = 'credit_card';
       appState.screen = 'transactions';
       renderApp();
     } else if (action === 'set-tx-filter') {
@@ -1318,8 +1326,10 @@ document.addEventListener('submit', async e => {
       renderApp();
       showToast('Recurring bill/EMI reminder added');
     } else if (id === 'walletForm') {
-      const bal = Number(document.getElementById('wBal').value) || 0;
+      const rawBal = Number(document.getElementById('wBal').value) || 0;
       const type = document.getElementById('wType').value;
+      // For Credit Card wallets, a positive entered opening balance represents existing unpaid dues
+      const bal = type === 'credit_card' && rawBal > 0 ? -rawBal : rawBal;
       await putRecord('wallets', {
         name: document.getElementById('wName').value.trim(),
         type,

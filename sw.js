@@ -1,5 +1,5 @@
 // Offline-First Service Worker (Network-First with Full Precache Offline Fallback)
-const CACHE_NAME = 'cashewflow-v1.0.15';
+const CACHE_NAME = 'cashewflow-v1.0.16';
 const PRECACHE_ASSETS = [
   './',
   './index.html',

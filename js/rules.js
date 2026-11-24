@@ -25,27 +25,40 @@ export function matchCategorizationRule(text, rules = []) {
 
 export function detectSelfTransfer({ type, merchant = '', note = '', walletId, toWalletId, amount, date }, wallets = [], existingTxs = []) {
   if (type === 'transfer' && toWalletId && walletId !== toWalletId) {
-    return { isSelfTransfer: true, reason: 'Transfer between own wallets' };
+    return { isSelfTransfer: true, reason: 'Transfer between own wallets', suggestedToWalletId: toWalletId };
   }
 
+  const sourceWallet = wallets.find(w => w.id === walletId);
   const combined = `${merchant} ${note}`.toLowerCase();
+  const ccPaymentPatterns = [
+    /\bcredit\s+card\s+(?:bill\s+)?payment\b/,
+    /\bcc\s+bill\s+pay/,
+    /\bcred\.club\b/,
+    /\bpay(?:ment)?\s+(?:to|towards)\s+(?:hdfc|icici|sbi|axis|kotak|amex|idfc|onecard)\s*(?:cc|credit\s*card)/
+  ];
   const selfPatterns = [
     /\bself[\s-]?transfer\b/,
     /\bown\s+account\b/,
     /\bwallet\s+(?:top[\s-]?up|load|add\s+money)\b/,
-    /\bcredit\s+card\s+(?:bill\s+)?payment\b/,
-    /\bcred\.club\b/,
-    /\bpay(?:ment)?\s+(?:to|towards)\s+(?:hdfc|icici|sbi|axis|kotak|amex|idfc|onecard)\s*(?:cc|credit\s*card)/
+    ...ccPaymentPatterns
   ];
-  if (selfPatterns.some(re => re.test(combined))) {
-    return { isSelfTransfer: true, reason: 'Matched self-transfer / card bill payment pattern' };
+
+  // If spending ON a credit card wallet itself, don't misclassify a normal swipe as a self-transfer
+  if (sourceWallet?.type !== 'credit_card' && selfPatterns.some(re => re.test(combined))) {
+    let suggestedToWalletId = toWalletId || null;
+    if (!suggestedToWalletId && ccPaymentPatterns.some(re => re.test(combined))) {
+      const ccWallets = wallets.filter(w => w.type === 'credit_card' && !w.deletedAt);
+      const matchedByDigits = ccWallets.find(w => w.last4Digits && combined.includes(w.last4Digits));
+      suggestedToWalletId = (matchedByDigits || ccWallets[0])?.id || null;
+    }
+    return { isSelfTransfer: true, reason: 'Matched self-transfer / card bill payment pattern', suggestedToWalletId };
   }
 
   // Check if merchant mentions another owned wallet's last 4 digits
   const otherWallets = wallets.filter(w => w.id !== walletId && w.last4Digits && /^\d{4}$/.test(w.last4Digits));
   for (const ow of otherWallets) {
     if (combined.includes(ow.last4Digits)) {
-      return { isSelfTransfer: true, reason: `Matched own account ••${ow.last4Digits}` };
+      return { isSelfTransfer: true, reason: `Matched own account ••${ow.last4Digits}`, suggestedToWalletId: ow.id };
     }
   }
 
@@ -62,11 +75,56 @@ export function detectSelfTransfer({ type, merchant = '', note = '', walletId, t
       Math.abs(new Date(tx.date).getTime() - ts) <= tenMin
     );
     if (match) {
-      return { isSelfTransfer: true, reason: 'Matched opposite debit/credit across own wallets within 10 min' };
+      return { isSelfTransfer: true, reason: 'Matched opposite debit/credit across own wallets within 10 min', suggestedToWalletId: match.walletId };
     }
   }
 
-  return { isSelfTransfer: false, reason: null };
+  return { isSelfTransfer: false, reason: null, suggestedToWalletId: null };
+}
+
+export function isCreditCardPaymentTx(tx, ccWalletIds) {
+  if (!tx || tx.deletedAt) return false;
+  if (tx.type === 'transfer' && tx.toWalletId && ccWalletIds.has(tx.toWalletId)) return true;
+  if (Array.isArray(tx.tags) && tx.tags.some(t => /^#cc-?bill$/i.test(t))) return true;
+  const text = `${tx.merchant || ''} ${tx.note || ''}`.toLowerCase();
+  return /\bcredit\s+card\s+(?:bill\s+)?pay|\bcc\s+bill\b|\bpaid\b.*\bcredit\s+card\b/.test(text);
+}
+
+export function computeCreditCardSummary(wallets = [], transactions = [], ccBills = []) {
+  const ccWallets = wallets.filter(w => w.type === 'credit_card' && !w.deletedAt);
+  const ccWalletIds = new Set(ccWallets.map(w => w.id));
+  const balances = computeWalletBalances(wallets, transactions);
+
+  let ledgerDues = 0;
+  for (const w of ccWallets) {
+    const bal = balances.get(w.id) ?? 0;
+    if (bal < 0) ledgerDues += Math.abs(bal);
+  }
+
+  const unpaidBillSum = ccBills
+    .filter(b => !b.deletedAt && b.status !== 'paid')
+    .reduce((s, b) => s + (Number(b.totalDue) || 0), 0);
+
+  let totalSwipes = 0;
+  let totalPaid = 0;
+  for (const tx of transactions) {
+    if (tx.deletedAt) continue;
+    const amt = Number(tx.amount) || 0;
+    if (tx.type === 'expense' && ccWalletIds.has(tx.walletId)) {
+      totalSwipes += amt;
+    } else if (isCreditCardPaymentTx(tx, ccWalletIds)) {
+      totalPaid += amt;
+    }
+  }
+
+  return {
+    ccWalletIds,
+    ledgerDues,
+    unpaidBillSum,
+    effectiveDues: Math.max(ledgerDues, unpaidBillSum),
+    totalSwipes,
+    totalPaid
+  };
 }
 
 // Compute live wallet balances from initialBalance + non-deleted transactions
