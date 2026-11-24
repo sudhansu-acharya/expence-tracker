@@ -4,7 +4,10 @@
 import { sha256Hex } from './crypto.js';
 import { matchCategorizationRule, detectSelfTransfer } from './rules.js';
 import { AccountAggregatorAdapter } from './parser.js';
+import { createPdfDecryptor, PdfPasswordError } from './pdf-decrypt.js';
 import { nowIso } from './format.js';
+
+export { PdfPasswordError };
 
 const MONTHS = {
   jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
@@ -364,23 +367,22 @@ function extractLinesFromContentStream(streamText, fontCMaps) {
     .filter(Boolean);
 }
 
-export async function extractTextFromPdfBuffer(arrayBuffer) {
+export async function extractTextFromPdfBuffer(arrayBuffer, password = null) {
   const bytes = new Uint8Array(arrayBuffer);
   const latin = bytesToLatin1(bytes);
 
   if (!latin.includes('%PDF-')) {
     throw new Error('File is not a valid PDF document');
   }
-  if (/\/Encrypt\b/.test(latin)) {
-    throw new Error('This PDF is password-protected. Please unlock it (Print → Save as PDF without password) or export CSV/HTML.');
-  }
+  const decryptor = await createPdfDecryptor(latin, password);
 
   // 1. Parse all top-level indirect objects (N G obj ... endobj)
   const objects = new Map(); // objNum -> { dict, streamText, rawBody }
-  const objHeaderRe = /(\d+)\s+\d+\s+obj\b/g;
+  const objHeaderRe = /(\d+)\s+(\d+)\s+obj\b/g;
   let om;
   while ((om = objHeaderRe.exec(latin)) !== null) {
     const objNum = parseInt(om[1], 10);
+    const genNum = parseInt(om[2], 10);
     const bodyStart = om.index + om[0].length;
     const endObjIdx = latin.indexOf('endobj', bodyStart);
     if (endObjIdx === -1) continue;
@@ -397,7 +399,14 @@ export async function extractTextFromPdfBuffer(arrayBuffer) {
         let de = bodyStart + endStreamRel;
         while (de > ds && (latin[de - 1] === '\n' || latin[de - 1] === '\r')) de--;
 
-        const rawSlice = bytes.subarray(ds, de);
+        let rawSlice = bytes.subarray(ds, de);
+        if (decryptor && objNum !== decryptor.encryptObjNum && !/\/Type\s*\/XRef\b/.test(dict) && !/\/Type\s*\/Metadata\b/.test(dict)) {
+          try {
+            rawSlice = await decryptor.decryptStream(rawSlice, objNum, genNum);
+          } catch {
+            // Skip undecryptable auxiliary streams (e.g. unencrypted metadata/embedded streams)
+          }
+        }
         let streamText = '';
         if (/\/FlateDecode\b/.test(dict)) {
           const inflated = await inflateBytes(rawSlice);
@@ -883,14 +892,14 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
   return results;
 }
 
-// Unified Entry Point for PDF, HTML, JSON, CSV, TSV, TXT Statement Documents
-export async function importStatementFile(file, context) {
+// Unified Entry Point for PDF (including password-protected), HTML, JSON, CSV, TSV, TXT Statement Documents
+export async function importStatementFile(file, context, { password = null } = {}) {
   const name = (file.name || '').toLowerCase();
   const adapter = new AccountAggregatorAdapter();
 
   if (name.endsWith('.pdf')) {
     const buf = await file.arrayBuffer();
-    const extractedText = await extractTextFromPdfBuffer(buf);
+    const extractedText = await extractTextFromPdfBuffer(buf, password);
     if (!extractedText || !extractedText.trim()) {
       throw new Error('Could not extract selectable text from this PDF (it may be a scanned image). Try exporting CSV/HTML or copying the text.');
     }

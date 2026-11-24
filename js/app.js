@@ -15,7 +15,7 @@ import { matchCategorizationRule, detectSelfTransfer, getPurchaseSuggestions, GR
 import {
   parseMessageOnDevice, AccountAggregatorAdapter, SAMPLE_SMS_LIBRARY
 } from './parser.js';
-import { importStatementFile } from './statement.js';
+import { importStatementFile, PdfPasswordError } from './statement.js';
 import {
   evaluateBudgetAlerts, detectRecurringCandidates, requestNotificationPermission,
   checkAndFireExpenseReminder, sendLocalNotification, buildReminderIcs
@@ -60,7 +60,8 @@ const appState = {
   statementAutoAdd: true,
   parseQueue: [],
   deferredInstallPrompt: null,
-  modalState: null
+  modalState: null,
+  pendingPdfImport: null
 };
 
 let vaultData = null;
@@ -519,6 +520,77 @@ function openSimpleModal(title, bodyHtml) {
       </div>
       ${bodyHtml}
     </div>`;
+}
+
+function openPdfPasswordModal(fileName, errorMsg = '') {
+  openSimpleModal('Unlock Password-Protected PDF', `
+    <form id="pdfPasswordForm" class="stack" style="gap:10px">
+      <div class="muted" style="line-height:1.5">
+        <strong>${escHtml(fileName)}</strong> is encrypted. Enter its password to decrypt and import transactions <strong>100% locally on your device</strong>.
+      </div>
+      ${errorMsg ? `<div class="chip chip-red" style="width:100%;justify-content:center;padding:8px">${escHtml(errorMsg)}</div>` : ''}
+      <div>
+        <label class="field-label">PDF Password</label>
+        <input class="input" type="password" id="pdfPasswordInput" placeholder="e.g. DOB (DDMMYYYY), PAN, or Customer ID" required autocomplete="off" />
+      </div>
+      <div class="muted" style="font-size:11px">Password is used only in memory to decrypt this file and is never stored or sent anywhere.</div>
+      <button class="btn-primary" type="submit" style="width:100%">Unlock &amp; Import PDF</button>
+    </form>`);
+  requestAnimationFrame(() => document.getElementById('pdfPasswordInput')?.focus());
+}
+
+async function processStatementFiles(files, passwordMap = {}) {
+  const ctx = {
+    wallets: vaultData.wallets,
+    categories: vaultData.categories,
+    rules: vaultData.categorization_rules,
+    existingTxs: vaultData.transactions
+  };
+  const allParsed = [];
+  for (const file of files) {
+    try {
+      const pw = Object.prototype.hasOwnProperty.call(passwordMap, file.name) ? passwordMap[file.name] : null;
+      const rows = await importStatementFile(file, ctx, { password: pw });
+      allParsed.push(...rows);
+    } catch (err) {
+      if (err instanceof PdfPasswordError || err?.code === 'PDF_PASSWORD_REQUIRED' || err?.code === 'PDF_WRONG_PASSWORD') {
+        appState.pendingPdfImport = { files, passwordMap, targetFileName: file.name };
+        openPdfPasswordModal(file.name, err.code === 'PDF_WRONG_PASSWORD' ? err.message : '');
+        return;
+      }
+      throw err;
+    }
+  }
+
+  appState.pendingPdfImport = null;
+  if (!allParsed.length) {
+    showToast('No transactions detected in the selected document(s)');
+    return;
+  }
+
+  if (appState.statementAutoAdd) {
+    const existingHashes = new Set(vaultData.transactions.map(x => x.sourceHash).filter(Boolean));
+    let added = 0;
+    let skipped = 0;
+    for (const item of allParsed) {
+      if (item.sourceHash && existingHashes.has(item.sourceHash)) {
+        skipped++;
+        continue;
+      }
+      await approveParsedItem(item);
+      if (item.sourceHash) existingHashes.add(item.sourceHash);
+      added++;
+    }
+    await refreshVaultData();
+    await evaluateBudgetAlerts(vaultData.budgets, vaultData.transactions, vaultData.settings, showToast);
+    await refreshVaultData();
+    renderApp();
+    showToast(`Auto-added ${added} transaction(s)${skipped ? ` (${skipped} duplicate(s) skipped)` : ''}`);
+  } else {
+    appState.parseQueue.push(...allParsed);
+    renderApp();
+    showToast(`Parsed ${allParsed.length} transaction(s) into Review Queue`);
+  }
 }
 
 /* ============================================================
@@ -1365,6 +1437,12 @@ document.addEventListener('submit', async e => {
       await refreshVaultData();
       renderApp();
       showToast('Custom category created');
+    } else if (id === 'pdfPasswordForm' && appState.pendingPdfImport) {
+      const pw = document.getElementById('pdfPasswordInput')?.value ?? '';
+      const { files, passwordMap, targetFileName } = appState.pendingPdfImport;
+      passwordMap[targetFileName] = pw;
+      closeModal();
+      await processStatementFiles(files, passwordMap);
     } else if (id === 'ruleForm') {
       const tagRaw = document.getElementById('rlTag').value.trim();
       await putRecord('categorization_rules', {
@@ -1467,48 +1545,8 @@ document.addEventListener('change', async e => {
       appState.statementAutoAdd = Boolean(t.checked);
     } else if (t.id === 'statementImportFile' && t.files?.length) {
       const files = [...t.files];
-      const ctx = {
-        wallets: vaultData.wallets,
-        categories: vaultData.categories,
-        rules: vaultData.categorization_rules,
-        existingTxs: vaultData.transactions
-      };
-      const allParsed = [];
-      for (const file of files) {
-        const rows = await importStatementFile(file, ctx);
-        allParsed.push(...rows);
-      }
-
-      if (!allParsed.length) {
-        showToast('No transactions detected in the selected document(s)');
-        t.value = '';
-        return;
-      }
-
-      if (appState.statementAutoAdd) {
-        const existingHashes = new Set(vaultData.transactions.map(x => x.sourceHash).filter(Boolean));
-        let added = 0;
-        let skipped = 0;
-        for (const item of allParsed) {
-          if (item.sourceHash && existingHashes.has(item.sourceHash)) {
-            skipped++;
-            continue;
-          }
-          await approveParsedItem(item);
-          if (item.sourceHash) existingHashes.add(item.sourceHash);
-          added++;
-        }
-        await refreshVaultData();
-        await evaluateBudgetAlerts(vaultData.budgets, vaultData.transactions, vaultData.settings, showToast);
-        await refreshVaultData();
-        renderApp();
-        showToast(`Auto-added ${added} transaction(s)${skipped ? ` (${skipped} duplicate(s) skipped)` : ''}`);
-      } else {
-        appState.parseQueue.push(...allParsed);
-        renderApp();
-        showToast(`Parsed ${allParsed.length} transaction(s) into Review Queue`);
-      }
       t.value = '';
+      await processStatementFiles(files, {});
     } else if (t.id === 'aaImportFile' && t.files?.[0]) {
       const file = t.files[0];
       const text = await file.text();
