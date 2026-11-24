@@ -39,6 +39,7 @@ export function renderTransactionsView(ctx) {
   const totalOut = filtered.filter(t => t.type === 'expense' && !t.isSelfTransfer).reduce((s, t) => s + (Number(t.amount) || 0), 0);
   const totalIn = filtered.filter(t => t.type === 'income' && !t.isSelfTransfer).reduce((s, t) => s + (Number(t.amount) || 0), 0);
   const totalInv = filtered.filter(t => t.type === 'investment' && !t.isSelfTransfer).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  const totalCcPaid = filtered.filter(t => isCreditCardPaymentTx(t, ccWalletIds)).reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
   const activeFilters = [];
   if (state.txCategoryFilter) activeFilters.push(`Category: ${catMap.get(state.txCategoryFilter)?.name || 'Selected'}`);
@@ -77,6 +78,7 @@ export function renderTransactionsView(ctx) {
             <span class="chip chip-green">In ${escHtml(formatMoney(totalIn, settings))}</span>
             <span class="chip chip-red">Out ${escHtml(formatMoney(totalOut, settings))}</span>
             <span class="chip chip-purple">Inv ${escHtml(formatMoney(totalInv, settings))}</span>
+            ${totalCcPaid > 0 ? `<span class="chip chip-accent">CC Paid ${escHtml(formatMoney(totalCcPaid, settings))}</span>` : ''}
           </div>
         </div>
         <div class="tx-list">

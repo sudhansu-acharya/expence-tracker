@@ -82,21 +82,35 @@ export function detectSelfTransfer({ type, merchant = '', note = '', walletId, t
   return { isSelfTransfer: false, reason: null, suggestedToWalletId: null };
 }
 
-export function isCreditCardPaymentTx(tx, ccWalletIds) {
+export function isCreditCardPaymentTx(tx, ccWalletIds = new Set()) {
   if (!tx || tx.deletedAt) return false;
   if (tx.type === 'transfer' && tx.toWalletId && ccWalletIds.has(tx.toWalletId)) return true;
-  if (Array.isArray(tx.tags) && tx.tags.some(t => /^#(?:cc-?bill|cc-?pay|credit-?card)/i.test(t))) return true;
+  if (Array.isArray(tx.tags) && tx.tags.some(t => /^#(?:cc-?bill|cc-?pay|cc-?dues)$/i.test(t))) return true;
   // Normal expense swipes ON a credit card wallet itself are spending, not bill payments
   if (tx.type === 'expense' && ccWalletIds.has(tx.walletId)) return false;
   if (tx.type === 'income') return false;
-  const text = `${tx.merchant || ''} ${tx.note || ''}`.toLowerCase();
+
+  const merchant = String(tx.merchant || '').trim().toLowerCase();
+  const note = String(tx.note || '').trim().toLowerCase();
+  const combined = `${merchant} ${note}`;
+
+  // Exclude normal merchant purchases paid *using* a credit card (e.g. RuPay Credit Card on UPI)
+  if (/\b(?:paid\s+)?(?:using|via|by|through|from)\s+(?:rupay\s+)?credit\s*card\b/.test(combined)) {
+    return false;
+  }
+
+  // Match known Indian credit card issuers & bill payment narrations (singular & plural "card/cards")
   return (
-    /\bcredit\s*card\b/.test(text) ||
-    /\bcc\s*(?:bill|pay|payment|due|autopay)\b/.test(text) ||
-    /\bcard\s*(?:bill|payment|due)\b/.test(text) ||
-    /\b(?:cred\.club|cred\s*pay|credapp|dreamplug)\b/.test(text) ||
-    /(?:^|[\s\/\-_@])cred(?:$|[\s\/\-_@])/.test(text) ||
-    /\b(?:sbi\s*card|sbicard|hdfc\s*card|icici\s*card|axis\s*card|kotak\s*card|amex|onecard|rbl\s*card|indusind\s*card|idfc\s*card)\b/.test(text)
+    /\bsbi\s*cards?\b/.test(combined) ||
+    /\bsbicards?\b/.test(combined) ||
+    /\b(?:hdfc|icici|axis|kotak|rbl|indusind|idfc|bob|au|yes|hsbc|citi|scb|standard\s*chartered|federal|pnb|canara)\s*(?:bank\s*)?(?:credit\s*)?cards?\b/.test(combined) ||
+    /\b(?:amex|american\s*express|onecard|bob\s*financial)\b/.test(combined) ||
+    /\bcredit\s*cards?\s*(?:bill|pay|payment|due|settlement|autopay|services)\b/.test(combined) ||
+    /\b(?:bill|pay|payment)\s*(?:for|to|towards)\s*(?:a\s*)?credit\s*cards?\b/.test(combined) ||
+    /\bcc\s*(?:bill|pay|payment|due|autopay)\b/.test(combined) ||
+    /\bcard\s*(?:bill|payment|due)\b/.test(combined) ||
+    /\b(?:cred\.club|cred\s*pay|credapp|dreamplug)\b/.test(combined) ||
+    /^cred(?:\s|$|\/|\-)/.test(merchant)
   );
 }
 

@@ -498,6 +498,12 @@ function renderTransactionModal() {
         <input class="input" id="modalNote" value="${escHtml(m.note)}" placeholder="Optional note" />
       </div>
 
+      ${m.type !== 'income' ? `
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;font-weight:600;color:var(--text-2);cursor:pointer">
+          <input type="checkbox" id="modalCcBillToggle" ${/#cc-?bill/i.test(m.tags) ? 'checked' : ''} />
+          Count as Credit Card Dues Paid (#cc-bill)
+        </label>` : ''}
+
       <button class="btn-primary" style="width:100%;margin-top:14px" data-action="save-tx">Save Encrypted Transaction</button>
     </div>`;
 }
@@ -1448,6 +1454,12 @@ document.addEventListener('change', async e => {
     else if (t.id === 'modalToWallet' && appState.modalState) appState.modalState.toWalletId = t.value;
     else if (t.id === 'modalSplitToggle' && appState.modalState) {
       appState.modalState.isSplit = t.checked;
+      renderTransactionModal();
+    } else if (t.id === 'modalCcBillToggle' && appState.modalState) {
+      const list = appState.modalState.tags.split(',').map(s => s.trim()).filter(Boolean);
+      const filtered = list.filter(s => !/^#?cc-?bill$/i.test(s));
+      if (t.checked) filtered.push('#cc-bill');
+      appState.modalState.tags = filtered.join(', ');
       renderTransactionModal();
     } else if (t.dataset.splitCat !== undefined && appState.modalState) {
       appState.modalState.splits[Number(t.dataset.splitCat)].categoryId = t.value;
