@@ -58,7 +58,9 @@ function parseAmt(str) {
 }
 
 /* ============================================================
-   PURE-JS OFFLINE PDF TEXT EXTRACTOR (FlateDecode + ToUnicode)
+   PURE-JS OFFLINE PDF TEXT EXTRACTOR
+   Supports: FlateDecode, ObjStm, Per-Font ToUnicode CMaps
+   (bfchar + bfrange single & array), and (x, y) row reconstruction
    ============================================================ */
 async function inflateBytes(bytes) {
   if (typeof DecompressionStream === 'undefined') return null;
@@ -88,20 +90,19 @@ function bytesToLatin1(bytes) {
 
 function decodeHexToUnicode(hex) {
   const clean = hex.replace(/\s+/g, '');
-  if (clean.length === 4) {
-    return String.fromCharCode(parseInt(clean, 16));
-  }
+  if (!clean) return '';
+  if (clean.length === 2) return String.fromCharCode(parseInt(clean, 16));
   let res = '';
   for (let i = 0; i + 3 < clean.length; i += 4) {
     res += String.fromCharCode(parseInt(clean.slice(i, i + 4), 16));
   }
-  if (!res && clean.length === 2) {
-    return String.fromCharCode(parseInt(clean, 16));
-  }
   return res;
 }
 
-function parseToUnicodeCMap(text, cmap) {
+function parseToUnicodeCMap(text) {
+  const cmap = new Map();
+  let keyHexLen = 4;
+
   // beginbfchar ... endbfchar
   const bfCharRe = /beginbfchar([\s\S]*?)endbfchar/g;
   let m;
@@ -109,115 +110,224 @@ function parseToUnicodeCMap(text, cmap) {
     const pairRe = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
     let p;
     while ((p = pairRe.exec(m[1])) !== null) {
+      keyHexLen = p[1].length;
       cmap.set(p[1].toUpperCase(), decodeHexToUnicode(p[2]));
     }
   }
-  // beginbfrange ... endbfrange
+
+  // beginbfrange ... endbfrange (supports both <dst> and [<dst1> <dst2> ...])
   const bfRangeRe = /beginbfrange([\s\S]*?)endbfrange/g;
   while ((m = bfRangeRe.exec(text)) !== null) {
-    const rangeRe = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
+    const body = m[1];
+    // Array form: <start> <end> [<u1> <u2> ...]
+    const arrRe = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*\[([\s\S]*?)\]/g;
+    let ar;
+    while ((ar = arrRe.exec(body)) !== null) {
+      const start = parseInt(ar[1], 16);
+      const kl = ar[1].length;
+      keyHexLen = kl;
+      const targets = [...ar[3].matchAll(/<([0-9A-Fa-f]+)>/g)].map(x => x[1]);
+      for (let idx = 0; idx < targets.length; idx++) {
+        cmap.set((start + idx).toString(16).toUpperCase().padStart(kl, '0'), decodeHexToUnicode(targets[idx]));
+      }
+    }
+    // Single destination form: <start> <end> <dstStart>
+    const singleRe = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
     let r;
-    while ((r = rangeRe.exec(m[1])) !== null) {
+    while ((r = singleRe.exec(body)) !== null) {
       const start = parseInt(r[1], 16);
       const end = parseInt(r[2], 16);
-      let dst = parseInt(r[3], 16);
-      const keyLen = r[1].length;
-      for (let code = start; code <= end && (code - start) < 512; code++, dst++) {
-        cmap.set(code.toString(16).toUpperCase().padStart(keyLen, '0'), String.fromCharCode(dst));
+      const kl = r[1].length;
+      keyHexLen = kl;
+      const dstHex = r[3];
+      let dstCode = parseInt(dstHex.slice(-4), 16);
+      const prefix = dstHex.length > 4 ? dstHex.slice(0, -4) : '';
+      for (let code = start; code <= end && (code - start) < 1024; code++, dstCode++) {
+        const key = code.toString(16).toUpperCase().padStart(kl, '0');
+        const valHex = prefix + dstCode.toString(16).padStart(4, '0');
+        cmap.set(key, decodeHexToUnicode(valHex));
       }
     }
   }
+  return { map: cmap, keyHexLen };
 }
 
-function decodePdfLiteral(str) {
-  return str
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r')
-    .replace(/\\t/g, '\t')
-    .replace(/\\([()\\])/g, '$1')
-    .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
+function decodePdfLiteralRaw(str) {
+  const bytes = [];
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '\\' && i + 1 < str.length) {
+      const nxt = str[++i];
+      if (nxt === 'n') bytes.push(10);
+      else if (nxt === 'r') bytes.push(13);
+      else if (nxt === 't') bytes.push(9);
+      else if (nxt === 'b') bytes.push(8);
+      else if (nxt === 'f') bytes.push(12);
+      else if (nxt === '\r') { if (str[i + 1] === '\n') i++; }
+      else if (nxt === '\n') { /* line continuation */ }
+      else if (/[0-7]/.test(nxt)) {
+        let oct = nxt;
+        if (i + 1 < str.length && /[0-7]/.test(str[i + 1])) oct += str[++i];
+        if (i + 1 < str.length && /[0-7]/.test(str[i + 1])) oct += str[++i];
+        bytes.push(parseInt(oct, 8) & 0xff);
+      } else {
+        bytes.push(nxt.charCodeAt(0) & 0xff);
+      }
+    } else {
+      bytes.push(ch.charCodeAt(0) & 0xff);
+    }
+  }
+  return bytes;
 }
 
-function decodePdfHexString(hex, cmap) {
-  const clean = hex.replace(/\s+/g, '').toUpperCase();
-  if (!clean) return '';
-
-  // Try 4-hex-digit (2-byte CID) CMap lookup first
-  if (cmap.size > 0 && clean.length % 4 === 0) {
+function decodePdfBytesWithCMap(bytes, cmapObj) {
+  if (!bytes.length) return '';
+  if (cmapObj && cmapObj.map && cmapObj.map.size > 0) {
+    const step = cmapObj.keyHexLen === 4 ? 2 : 1;
     let out = '';
     let hits = 0;
-    for (let i = 0; i < clean.length; i += 4) {
-      const k = clean.slice(i, i + 4);
-      if (cmap.has(k)) {
-        out += cmap.get(k);
+    for (let i = 0; i < bytes.length; i += step) {
+      let hex = '';
+      for (let j = 0; j < step && (i + j) < bytes.length; j++) {
+        hex += bytes[i + j].toString(16).toUpperCase().padStart(2, '0');
+      }
+      if (cmapObj.map.has(hex)) {
+        out += cmapObj.map.get(hex);
         hits++;
-      } else {
-        out += String.fromCharCode(parseInt(k, 16));
+      } else if (step === 1 && bytes[i] >= 32 && bytes[i] < 127) {
+        out += String.fromCharCode(bytes[i]);
+      } else if (step === 2 && i + 1 < bytes.length) {
+        const code = (bytes[i] << 8) | bytes[i + 1];
+        if (code >= 32 && code < 127) out += String.fromCharCode(code);
       }
     }
-    if (hits > 0) return out;
+    if (hits > 0 || out.trim()) return out;
   }
-
-  // Try 2-hex-digit CMap or ASCII
+  // Fallback ASCII/Latin-1
   let out = '';
-  for (let i = 0; i + 1 < clean.length; i += 2) {
-    const k = clean.slice(i, i + 2);
-    if (cmap.has(k)) out += cmap.get(k);
-    else {
-      const code = parseInt(k, 16);
-      if (code >= 32 && code < 127) out += String.fromCharCode(code);
-    }
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b >= 32 && b < 127) out += String.fromCharCode(b);
+    else if (b === 10 || b === 13 || b === 9) out += ' ';
   }
   return out;
 }
 
-function extractTextFromContentStream(streamText, cmap) {
-  const lines = [];
-  let current = '';
+function decodePdfHexWithCMap(hex, cmapObj) {
+  const clean = hex.replace(/\s+/g, '').toUpperCase();
+  if (!clean) return '';
+  const bytes = [];
+  for (let i = 0; i + 1 < clean.length; i += 2) {
+    bytes.push(parseInt(clean.slice(i, i + 2), 16));
+  }
+  return decodePdfBytesWithCMap(bytes, cmapObj);
+}
 
-  const flush = () => {
-    const trimmed = current.replace(/\s+/g, ' ').trim();
-    if (trimmed) lines.push(trimmed);
-    current = '';
+function extractLinesFromContentStream(streamText, fontCMaps) {
+  const fragments = [];
+  let activeFont = null;
+  let curX = 0;
+  let curY = 0;
+  let lineOrder = 0;
+
+  const pushText = (txt, x, y) => {
+    const cleaned = txt.replace(/\u0000/g, '');
+    if (!cleaned) return;
+    fragments.push({ text: cleaned, x, y, order: lineOrder++ });
   };
 
-  // Tokenize PDF text blocks (BT ... ET)
+  // Match font switches (/F1 12 Tf) and BT...ET blocks
   const btRe = /BT([\s\S]*?)ET/g;
   let bt;
   while ((bt = btRe.exec(streamText)) !== null) {
     const block = bt[1];
-    // Split on text-showing and line-moving operators
-    const opRe = /(\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>|\[(?:[\s\S]*?)\])\s*(Tj|TJ|'|"|)|(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(Td|TD)|T\*/g;
-    let op;
-    while ((op = opRe.exec(block)) !== null) {
-      if (op[0] === 'T*' || op[5] === 'Td' || op[5] === 'TD') {
-        const dy = parseFloat(op[4] || '0');
-        if (op[0] === 'T*' || Math.abs(dy) > 4) flush();
-        else if (current && !current.endsWith(' ')) current += ' ';
+    let tx = 0;
+    let ty = 0;
+
+    const tokenRe = /\/([A-Za-z0-9_.\-+]+)\s+[\d.\-]+\s+Tf|([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+([\-0-9.]+)\s+Tm|([\-0-9.]+)\s+([\-0-9.]+)\s+(Td|TD)|T\*|(\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>|\[(?:[\s\S]*?)\])\s*(Tj|TJ|'|")/g;
+    let tok;
+    while ((tok = tokenRe.exec(block)) !== null) {
+      if (tok[1]) {
+        activeFont = tok[1];
         continue;
       }
-      const operand = op[1];
-      const kind = op[2];
+      if (tok[6] !== undefined) {
+        tx = parseFloat(tok[6]) || 0;
+        ty = parseFloat(tok[7]) || 0;
+        curX = tx;
+        curY = ty;
+        continue;
+      }
+      if (tok[10] === 'Td' || tok[10] === 'TD') {
+        tx += parseFloat(tok[8]) || 0;
+        ty += parseFloat(tok[9]) || 0;
+        curX = tx;
+        curY = ty;
+        continue;
+      }
+      if (tok[0] === 'T*') {
+        ty -= 12;
+        curY = ty;
+        continue;
+      }
+
+      const operand = tok[11];
+      const kind = tok[12];
       if (!operand || !kind) continue;
 
+      const cmapObj = (activeFont && fontCMaps.get(activeFont)) || fontCMaps.get('__default__') || null;
+      let piece = '';
+
       if (kind === 'TJ' && operand.startsWith('[')) {
-        const innerRe = /\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>|-?\d+(?:\.\d+)?/g;
+        const innerRe = /\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]+>|[\-0-9.]+/g;
         let part;
         while ((part = innerRe.exec(operand.slice(1, -1))) !== null) {
-          const tok = part[0];
-          if (tok.startsWith('(')) current += decodePdfLiteral(tok.slice(1, -1));
-          else if (tok.startsWith('<')) current += decodePdfHexString(tok.slice(1, -1), cmap);
-          else if (parseFloat(tok) < -180) current += ' ';
+          const p = part[0];
+          if (p.startsWith('(')) piece += decodePdfBytesWithCMap(decodePdfLiteralRaw(p.slice(1, -1)), cmapObj);
+          else if (p.startsWith('<')) piece += decodePdfHexWithCMap(p.slice(1, -1), cmapObj);
+          else if (parseFloat(p) < -180) piece += ' ';
         }
       } else {
-        if (operand.startsWith('(')) current += decodePdfLiteral(operand.slice(1, -1));
-        else if (operand.startsWith('<')) current += decodePdfHexString(operand.slice(1, -1), cmap);
-        if (kind === "'" || kind === '"') flush();
+        if (operand.startsWith('(')) piece += decodePdfBytesWithCMap(decodePdfLiteralRaw(operand.slice(1, -1)), cmapObj);
+        else if (operand.startsWith('<')) piece += decodePdfHexWithCMap(operand.slice(1, -1), cmapObj);
+        if (kind === "'" || kind === '"') {
+          ty -= 12;
+          curY = ty;
+        }
+      }
+
+      if (piece) {
+        pushText(piece, curX, curY);
+        curX += piece.length * 4;
       }
     }
-    flush();
   }
-  return lines.join('\n');
+
+  if (!fragments.length) return [];
+
+  // Group fragments by visual Y row (within 4pt tolerance), top-to-bottom (higher Y first in PDF), left-to-right (lower X first)
+  const hasRealCoords = fragments.some(f => f.x !== 0 || f.y !== 0);
+  if (!hasRealCoords) {
+    return fragments.map(f => f.text.trim()).filter(Boolean);
+  }
+
+  const rows = [];
+  for (const frag of fragments) {
+    let row = rows.find(r => Math.abs(r.y - frag.y) <= 4);
+    if (!row) {
+      row = { y: frag.y, items: [] };
+      rows.push(row);
+    }
+    row.items.push(frag);
+  }
+
+  rows.sort((a, b) => b.y - a.y);
+  return rows
+    .map(r => {
+      r.items.sort((a, b) => a.x - b.x || a.order - b.order);
+      return r.items.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
+    })
+    .filter(Boolean);
 }
 
 export async function extractTextFromPdfBuffer(arrayBuffer) {
@@ -231,52 +341,131 @@ export async function extractTextFromPdfBuffer(arrayBuffer) {
     throw new Error('This PDF is password-protected. Please unlock it (Print → Save as PDF without password) or export CSV/HTML.');
   }
 
-  const cmap = new Map();
-  const decodedStreams = [];
+  // 1. Parse all top-level indirect objects (N G obj ... endobj)
+  const objects = new Map(); // objNum -> { dict, streamText, rawBody }
+  const objHeaderRe = /(\d+)\s+\d+\s+obj\b/g;
+  let om;
+  while ((om = objHeaderRe.exec(latin)) !== null) {
+    const objNum = parseInt(om[1], 10);
+    const bodyStart = om.index + om[0].length;
+    const endObjIdx = latin.indexOf('endobj', bodyStart);
+    if (endObjIdx === -1) continue;
+    const body = latin.slice(bodyStart, endObjIdx);
 
-  let pos = 0;
-  while (pos < latin.length) {
-    const streamIdx = latin.indexOf('stream', pos);
-    if (streamIdx === -1) break;
-    const endIdx = latin.indexOf('endstream', streamIdx + 6);
-    if (endIdx === -1) break;
+    const streamRel = body.indexOf('stream');
+    if (streamRel !== -1) {
+      const endStreamRel = body.indexOf('endstream', streamRel + 6);
+      if (endStreamRel !== -1) {
+        const dict = body.slice(0, streamRel);
+        let ds = bodyStart + streamRel + 6;
+        if (latin[ds] === '\r' && latin[ds + 1] === '\n') ds += 2;
+        else if (latin[ds] === '\n' || latin[ds] === '\r') ds += 1;
+        let de = bodyStart + endStreamRel;
+        while (de > ds && (latin[de - 1] === '\n' || latin[de - 1] === '\r')) de--;
 
-    const dictSlice = latin.slice(Math.max(0, streamIdx - 320), streamIdx);
-    let dataStart = streamIdx + 6;
-    if (latin[dataStart] === '\r' && latin[dataStart + 1] === '\n') dataStart += 2;
-    else if (latin[dataStart] === '\n' || latin[dataStart] === '\r') dataStart += 1;
+        const rawSlice = bytes.subarray(ds, de);
+        let streamText = '';
+        if (/\/FlateDecode\b/.test(dict)) {
+          const inflated = await inflateBytes(rawSlice);
+          if (inflated) streamText = bytesToLatin1(inflated);
+        } else if (!/\/DCTDecode|\/JPXDecode|\/CCITTFaxDecode/.test(dict)) {
+          streamText = bytesToLatin1(rawSlice);
+        }
+        objects.set(objNum, { dict, streamText, rawBody: dict });
 
-    let dataEnd = endIdx;
-    while (dataEnd > dataStart && (latin[dataEnd - 1] === '\n' || latin[dataEnd - 1] === '\r')) {
-      dataEnd--;
-    }
-
-    const rawSlice = bytes.subarray(dataStart, dataEnd);
-    let text = '';
-    if (/\/FlateDecode\b/.test(dictSlice)) {
-      const inflated = await inflateBytes(rawSlice);
-      if (inflated) text = bytesToLatin1(inflated);
-    } else if (!/\/DCTDecode|\/JPXDecode|\/CCITTFaxDecode/.test(dictSlice)) {
-      text = bytesToLatin1(rawSlice);
-    }
-
-    if (text) {
-      if (text.includes('beginbfchar') || text.includes('beginbfrange')) {
-        parseToUnicodeCMap(text, cmap);
+        // Expand PDF 1.5+ compressed Object Streams (/ObjStm)
+        if (/\/Type\s*\/ObjStm\b/.test(dict) && streamText) {
+          const firstMatch = dict.match(/\/First\s+(\d+)/);
+          const nMatch = dict.match(/\/N\s+(\d+)/);
+          if (firstMatch && nMatch) {
+            const first = parseInt(firstMatch[1], 10);
+            const n = parseInt(nMatch[1], 10);
+            const headerNums = streamText.slice(0, first).trim().split(/\s+/).map(Number);
+            for (let k = 0; k < n && (k * 2 + 1) < headerNums.length; k++) {
+              const subNum = headerNums[k * 2];
+              const subOff = first + headerNums[k * 2 + 1];
+              const nextOff = (k + 1 < n && ((k + 1) * 2 + 1) < headerNums.length)
+                ? first + headerNums[(k + 1) * 2 + 1]
+                : streamText.length;
+              const subBody = streamText.slice(subOff, nextOff);
+              if (!objects.has(subNum)) {
+                objects.set(subNum, { dict: subBody, streamText: '', rawBody: subBody });
+              }
+            }
+          }
+        }
+        continue;
       }
-      if (text.includes('BT') && (text.includes('Tj') || text.includes('TJ'))) {
-        decodedStreams.push(text);
-      }
     }
-    pos = endIdx + 9;
+    objects.set(objNum, { dict: body, streamText: '', rawBody: body });
   }
 
-  const extracted = decodedStreams
-    .map(s => extractTextFromContentStream(s, cmap))
-    .filter(Boolean)
-    .join('\n');
+  // 2. Build ToUnicode CMap index by object number
+  const cmapByObj = new Map();
+  for (const [num, obj] of objects.entries()) {
+    if (obj.streamText && (obj.streamText.includes('beginbfchar') || obj.streamText.includes('beginbfrange'))) {
+      cmapByObj.set(num, parseToUnicodeCMap(obj.streamText));
+    }
+  }
 
-  return extracted;
+  // 3. Map Font Object ID -> CMap (handling /ToUnicode direct & via /DescendantFonts)
+  const fontObjToCMap = new Map();
+  for (const [num, obj] of objects.entries()) {
+    const tu = obj.rawBody.match(/\/ToUnicode\s+(\d+)\s+\d+\s+R/);
+    if (tu && cmapByObj.has(parseInt(tu[1], 10))) {
+      fontObjToCMap.set(num, cmapByObj.get(parseInt(tu[1], 10)));
+    }
+  }
+  for (const [num, obj] of objects.entries()) {
+    if (fontObjToCMap.has(num)) continue;
+    const desc = obj.rawBody.match(/\/DescendantFonts\s*\[\s*(\d+)\s+\d+\s+R/);
+    if (desc && fontObjToCMap.has(parseInt(desc[1], 10))) {
+      fontObjToCMap.set(num, fontObjToCMap.get(parseInt(desc[1], 10)));
+    }
+  }
+
+  // 4. Map Font Resource Names (/F1, /F2, /TT0, etc.) -> their own CMap
+  const fontNameToCMap = new Map();
+  for (const [, obj] of objects.entries()) {
+    const fontDictRe = /\/Font\s*<<([\s\S]*?)>>/g;
+    let fm;
+    while ((fm = fontDictRe.exec(obj.rawBody)) !== null) {
+      const refRe = /\/([A-Za-z0-9_.\-+]+)\s+(\d+)\s+\d+\s+R/g;
+      let rf;
+      while ((rf = refRe.exec(fm[1])) !== null) {
+        const refNum = parseInt(rf[2], 10);
+        if (fontObjToCMap.has(refNum)) {
+          fontNameToCMap.set(rf[1], fontObjToCMap.get(refNum));
+        }
+      }
+    }
+    // Also handle indirect /Font N 0 R dictionaries
+    const refRe = /\/(F\d+|TT\d+|C\d+_\d+)\s+(\d+)\s+\d+\s+R/g;
+    let rf;
+    while ((rf = refRe.exec(obj.rawBody)) !== null) {
+      const refNum = parseInt(rf[2], 10);
+      if (fontObjToCMap.has(refNum) && !fontNameToCMap.has(rf[1])) {
+        fontNameToCMap.set(rf[1], fontObjToCMap.get(refNum));
+      }
+    }
+  }
+  if (cmapByObj.size === 1) {
+    fontNameToCMap.set('__default__', [...cmapByObj.values()][0]);
+  }
+
+  // 5. Extract text page-by-page (in object order) from all content streams
+  const allLines = [];
+  for (const [, obj] of objects.entries()) {
+    if (!obj.streamText) continue;
+    if (obj.streamText.includes('beginbfchar') || obj.streamText.includes('beginbfrange')) continue;
+    if (/\/Type\s*\/ObjStm\b/.test(obj.dict)) continue;
+    if (obj.streamText.includes('BT') && (obj.streamText.includes('Tj') || obj.streamText.includes('TJ'))) {
+      const pageLines = extractLinesFromContentStream(obj.streamText, fontNameToCMap);
+      allLines.push(...pageLines);
+    }
+  }
+
+  return allLines.join('\n');
 }
 
 /* ============================================================
@@ -337,9 +526,11 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
   const upiWallet = context.wallets.find(w => w.type === 'upi') || context.wallets.find(w => w.type === 'bank') || context.wallets[0];
 
   const dateLineRe = /\b(\d{1,2}[\s\-\/](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*[\s\-\/,]+\d{2,4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{2,4}|\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4})\b/i;
-  const gpayActionRe = /^(?:Paid\s+to|Sent\s+to|Received\s+from|Refund\s+from|Payment\s+to|Transfer\s+to|Cashback\s+from)\s+(.+)$/i;
+  // Matches anywhere in a reconstructed PDF row: e.g. "03 May, 2026 Paid to Flipkart Payments ₹182"
+  const gpayActionRe = /\b(Paid\s+to|Sent\s+to|Received\s+from|Refund\s+from|Payment\s+to|Transfer\s+to|Cashback\s+from)\s+(.+)$/i;
   const takeoutLineRe = /(Paid|Sent|Received)\s+(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)\s+(?:to|from)\s+(.+?)(?:\s+using\s+(.+))?$/i;
   const amtRe = /(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)/i;
+  const trailingAmtRe = /(?:₹|Rs\.?|INR)?\s*([\d,]+(?:\.\d{1,2})?)\s*$/;
 
   let currentDateIso = nowIso();
 
@@ -392,15 +583,29 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
       continue;
     }
 
-    // Pattern B: Google Pay India PDF Statement block ("Paid to Swiggy" followed by UPI Txn ID, Paid by Bank xxxx, ₹640)
+    // Pattern B: Google Pay India PDF Statement row/block:
+    // Handles both same-row ("03 May, 2026 Paid to Flipkart Payments ₹182") and multi-line blocks
     const am = line.match(gpayActionRe);
     if (am) {
-      const isCredit = /^(?:Received|Refund|Cashback)/i.test(line);
+      const verbPhrase = am[1];
+      const isCredit = /^(?:Received|Refund|Cashback)/i.test(verbPhrase);
       const rawType = isCredit ? 'income' : 'expense';
-      let merchant = am[1].replace(/(?:₹|Rs\.?|INR)\s*[\d,]+(?:\.\d{1,2})?/i, '').trim().slice(0, 64);
+      let tail = am[2].trim();
 
-      // Look ahead up to 4 lines for amount, UPI transaction ID, and bank last-4
-      let amount = parseAmt(line.match(amtRe)?.[1]);
+      // Extract amount from same line (with ₹/Rs. or trailing numeric column)
+      let amount = parseAmt(tail.match(amtRe)?.[1]);
+      if (amount) {
+        tail = tail.replace(amtRe, '').trim();
+      } else {
+        const tr = tail.match(/\s+([\d,]+(?:\.\d{1,2})?)$/);
+        if (tr && parseAmt(tr[1])) {
+          amount = parseAmt(tr[1]);
+          tail = tail.slice(0, tr.index).trim();
+        }
+      }
+      let merchant = tail.replace(/\s+/g, ' ').trim().slice(0, 64);
+
+      // Look ahead up to 4 lines for amount (if not on same line), UPI Transaction ID, and Paid by Bank / UPI Lite
       let upiId = '';
       let last4 = '';
       let blockDateIso = currentDateIso;
@@ -413,12 +618,12 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
         const nd = nxt.match(dateLineRe);
         if (nd && !dm) blockDateIso = parseFlexibleDate(nd[1]);
         if (!amount) {
-          const na = nxt.match(amtRe);
+          const na = nxt.match(amtRe) || (/^(?:₹|Rs\.?|INR)?\s*[\d,]+(?:\.\d{1,2})?$/.test(nxt) ? nxt.match(trailingAmtRe) : null);
           if (na) amount = parseAmt(na[1]);
         }
         const uid = nxt.match(/UPI\s*Transaction\s*ID[:\s]*([A-Za-z0-9]+)/i);
         if (uid) upiId = uid[1];
-        const l4 = nxt.match(/(?:Paid\s+by|Credited\s+to|Bank|Card).*?(\d{4})/i);
+        const l4 = nxt.match(/(?:Paid\s+by|Credited\s+to|Bank|UPI\s*Lite|Card).*?(\d{4})/i);
         if (l4) last4 = l4[1];
       }
 
