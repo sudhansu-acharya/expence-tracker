@@ -1,84 +1,63 @@
-# How to Run CashewFlow on Windows, macOS, and Android
+# How to Run CashewFlow on Windows, macOS, Android, and iPhone/iPad (iOS)
 
-CashewFlow is a **100% free, offline-first, AES-256-GCM encrypted** expense & budget tracker.
-Because it uses browser **Web Crypto (`AES-256-GCM` / `PBKDF2`)**, **ES Modules**, and a **Service Worker**, it should be opened via `http://localhost` (on desktop) or `https://` (for Android / cross-device PWA).
-
-> **Quick Note on Prototype vs. Full App**
-> - **UI Prototype (`prototype/index.html`)**: You can double-click it directly in any browser (no server needed) just to preview the design.
-> - **Full Encrypted App (`index.html`)**: Follow the platform steps below so encryption, offline caching, and PWA install work properly.
+CashewFlow is a **100% free, offline-first, AES-256-GCM encrypted** expense, budget & investment tracker.
+Because it uses browser **Web Crypto (`AES-256-GCM` / `PBKDF2`)**, **ES Modules**, and a **Service Worker**, open it via `http://localhost` (on desktop) or your HTTPS link `https://sudhansu-acharya.github.io/expence-tracker/` (on Android, iOS, Windows, or macOS).
 
 ---
 
-## 1. Windows (Chrome / Edge / Brave)
+## 1. Windows (Local — 1-Click Launch)
 
-### Option A — Run Locally in 1 Command (No Installation)
-1. Open **PowerShell** or **Command Prompt**.
-2. Run one of the following commands (whichever tool you have installed):
+### Option A — Double-Click Launcher (Easiest)
+1. Open `C:\Sudhansu\AI projects\expence-tracker`.
+2. Double-click **`Start-CashewFlow.bat`**.
+3. It automatically starts the local server (using Python or Node.js) and opens **`http://localhost:8080`** in your browser.
+4. Keep the small black terminal window open while using the app (close it when done).
 
-   **Using Python (recommended):**
-   ```powershell
-   python -m http.server 8080 --directory "C:\Sudhansu\AI projects\expence-tracker"
-   ```
-
-   **Or using Node.js:**
-   ```powershell
-   npx serve "C:\Sudhansu\AI projects\expence-tracker" -l 8080
-   ```
-
-3. Open your browser and go to:
-   ```text
-   http://localhost:8080
-   ```
-4. **Optional — Use as a Standalone Desktop App**:
-   - In Chrome or Edge, click the **Install App** icon in the address bar (or the **Install App** button in the CashewFlow top bar).
-   - It will appear in your Windows Start Menu and run in its own window.
-5. **First-Run Vault Setup**:
-   - Enter a local Username, Master Password (min 6 chars), and optional 4–6 digit Quick PIN.
-   - **Save your Recovery Key** (copy or download `.txt`) before entering the vault.
+### Option B — Run from PowerShell
+```powershell
+python -m http.server 8080 --bind 127.0.0.1 --directory "C:\Sudhansu\AI projects\expence-tracker"
+```
+Then open **`http://localhost:8080`** in Chrome, Edge, or Brave.
+- **Optional Desktop App Window**: Click the **Install** icon in the address bar (or **Install App** in CashewFlow's top bar) to pin it to your Windows Start Menu.
 
 ---
 
 ## 2. Apple macOS (Safari / Chrome / Edge)
 
 1. Copy the `expence-tracker` folder to your Mac (e.g., `~/Documents/expence-tracker`).
-2. Open **Terminal** and run:
-
-   **Using Python 3 (built into macOS):**
+2. Double-click **`start-cashewflow.command`** (or run in Terminal):
    ```bash
-   python3 -m http.server 8080 --directory ~/Documents/expence-tracker
+   python3 -m http.server 8080 --bind 127.0.0.1 --directory ~/Documents/expence-tracker
    ```
-
-   **Or using Node.js:**
-   ```bash
-   npx serve ~/Documents/expence-tracker -l 8080
-   ```
-
-3. Open **Safari** or **Chrome** and go to:
-   ```text
-   http://localhost:8080
-   ```
-4. **Optional — Add to macOS Dock**:
-   - **Safari (macOS Sonoma+)**: Menu bar → **File → Add to Dock…**
-   - **Chrome**: Click the **Install** icon in the right side of the address bar.
+3. Open **`http://localhost:8080`** in Safari or Chrome.
+4. **Add to Dock**: In Safari → **File → Add to Dock…** (or Chrome → **Install** icon).
 
 ---
 
-## 3. Android (Zero-Install Offline PWA — Recommended)
+## 3. Android (Chrome PWA — Offline & Home Screen Icon)
 
-Android browsers require **HTTPS** (not a local `file://` path) to enable AES-256-GCM encryption, offline Service Worker caching, and "Add to Home Screen".
+1. Open **Google Chrome** (normal tab, not Incognito) on your Android phone and go to:
+   ```text
+   https://sudhansu-acharya.github.io/expence-tracker/
+   ```
+2. Tap **⋮ (three dots) → Add to Home screen → Install**.
+3. Open **CashewFlow** from your home screen — it caches everything via Service Worker and works **100% offline**.
+4. **Daily/Weekly/Yearly Reminders**: Go to **Settings → Expense Update Reminder** to enable notifications or tap **Add to Phone/PC Calendar (`.ics`)** for guaranteed OS alarms even when Chrome is closed.
 
-### Best Free Way (Works on Android, Windows & Mac from Anywhere)
-Host the static folder for **free** on **GitHub Pages** or **Cloudflare Pages** (zero backend, your data never touches the host — it stays encrypted inside your device's `IndexedDB`):
+---
 
-1. Upload the contents of `C:\Sudhansu\AI projects\expence-tracker` to a GitHub repository (or drag-and-drop the folder into Cloudflare Pages).
-2. Enable **GitHub Pages** (*Settings → Pages → Deploy from branch → `main` / root*).
-3. Open your free HTTPS URL (e.g., `https://<username>.github.io/expence-tracker/`) in **Chrome on Android**.
-4. Tap **⋮ (Menu) → Add to Home screen → Install**.
-5. Once opened once, the **Service Worker caches everything** — you can turn on **Airplane Mode** and CashewFlow will continue working **100% offline**.
+## 4. iPhone & iPad (iOS / iPadOS Safari PWA)
 
-### Using SMS / Credit Card Bill Parsing on Android (PWA Mode)
-- Open **Smart Capture** inside the app and paste any bank debit SMS, GPay/PhonePe/Paytm alert, or Credit Card statement SMS — or use Android's **Share** menu to share SMS text directly into CashewFlow.
-- All parsing runs **100% on-device** with zero server calls.
+iOS requires **Safari** (not Chrome) to install full-screen offline web apps:
+1. Open **Safari** on your iPhone/iPad and go to:
+   ```text
+   https://sudhansu-acharya.github.io/expence-tracker/
+   ```
+2. Tap the **Share** button (square with upward arrow at the bottom of Safari).
+3. Scroll down and tap **Add to Home Screen** → tap **Add**.
+4. Open **CashewFlow** from your iPhone/iPad home screen:
+   - Runs full-screen with Liquid Glass status bar blending (`black-translucent`), safe-area notch/home-bar padding, no input auto-zoom, and **100% offline** caching.
+   - For notifications on iOS 16.4+: open the installed Home Screen app → **Settings → Expense Update Reminder → Enable** (and/or tap **Add to Phone/PC Calendar (`.ics`)** to add a recurring Apple Calendar alarm).
 
 ---
 
