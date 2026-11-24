@@ -799,6 +799,7 @@ export async function parseStatementText(rawText, context, { sourceTag = '#gpay-
           .replace(/^(\d{1,2}[\-\/]\d{1,2}[\-\/]\d{2,4}\s*){1,2}/, '')
           .replace(/^(\d{1,2}[\s\-\/](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*[\s\-\/]\d{2,4}\s*){1,2}/i, '')
           .replace(/(\d[\d,]*\.\d{2}\s+[-–]\s+\d[\d,]*\.\d{2}|[-–]\s+\d[\d,]*\.\d{2}\s+\d[\d,]*\.\d{2}|\d[\d,]*\.\d{2}\s+\d[\d,]*\.\d{2})\s*$/, '')
+          .replace(/(?:\s+[-–])+\s*$/, '')
           .trim();
         if (strippedMain) descParts.push(strippedMain);
 
